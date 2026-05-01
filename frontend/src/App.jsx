@@ -125,7 +125,7 @@ export default function App() {
     return { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` }
   }
 
-  // ── Enviar al backend ─────────────────────────────────────────────────────
+  // ── Enviar al backend (con bbox manual) ──────────────────────────────────
   const handleSegment = async () => {
     if (!imageFile || !bbox) return
     setLoading(true)
@@ -153,14 +153,42 @@ export default function App() {
     }
   }
 
+  // ── Segmentación automática (Canny → bbox → FastSAM) ───────────────────
+  const handleAutoSegment = async () => {
+    if (!imageFile) return
+    setLoading(true)
+    setError(null)
+    setResult(null)
+
+    try {
+      const fd = new FormData()
+      fd.append('file', imageFile)
+
+      const res = await fetch(`${API_URL}/segment_auto/`, { method: 'POST', body: fd })
+
+      if (!res.ok) {
+        const detail = await res.json().then(d => d.detail).catch(() => res.statusText)
+        throw new Error(detail)
+      }
+
+      const blob = await res.blob()
+      setResult(URL.createObjectURL(blob))
+    } catch (err) {
+      setError(err.message || 'Error desconocido')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const canSegment = imageFile && imageObj && bbox && !loading
+  const canAutoSegment = imageFile && imageObj && !loading
   const activeBox  = drawing || bbox    // caja a dibujar (arrastrando o confirmada)
 
   return (
     <div className="app">
       <header className="header">
         <h1>FastSAM · Segmentación interactiva</h1>
-        <p>Sube una imagen y dibuja un recuadro sobre el objeto para segmentarlo.</p>
+        <p>Sube una imagen y segmenta automáticamente, o dibuja un recuadro manual.</p>
       </header>
 
       <main className="main">
@@ -219,17 +247,20 @@ export default function App() {
               <button className="btn-secondary" onClick={() => { setImageObj(null); setImageFile(null); setBbox(null); setDrawing(null); setResult(null); setError(null) }}>
                 Nueva imagen
               </button>
+              <button className="btn-primary" onClick={handleAutoSegment} disabled={!canAutoSegment}>
+                {loading && !bbox ? <span className="spinner" /> : '🔍 Auto Segmentar'}
+              </button>
               <button className="btn-primary" onClick={handleSegment} disabled={!canSegment}>
-                {loading ? <span className="spinner" /> : '✂️ Segmentar'}
+                {loading && bbox ? <span className="spinner" /> : '✂️ Segmentar'}
               </button>
             </div>
           )}
 
           {!bbox && !drawing && imageObj && !loading && !result && (
-            <p className="hint">📦 Haz clic y arrastra sobre el objeto para dibujar un recuadro.</p>
+            <p className="hint">🔍 Pulsa <strong>Auto Segmentar</strong> o dibuja un recuadro manualmente sobre el objeto.</p>
           )}
           {bbox && !result && !loading && (
-            <p className="hint">✅ Recuadro listo — pulsa <strong>Segmentar</strong>. Puedes redibujar si lo deseas.</p>
+            <p className="hint">✅ Recuadro listo — pulsa <strong>Segmentar</strong>. Puedes redibujar o usar <strong>Auto Segmentar</strong>.</p>
           )}
           {error && <p className="error">⚠️ {error}</p>}
         </section>

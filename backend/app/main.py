@@ -2,18 +2,22 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import asyncio
 import json
 import traceback
 from PIL import Image, ImageOps
 import io
 
-# Importamos nuestros módulos locales
-from segmentation import segment_with_sam_api
+from segmentation import segment_with_fastsam
+from utils import detectar_bbox_canny
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Servidor iniciado (segmentación vía Replicate API)")
+    # Pre-cargar el modelo al arrancar
+    from segmentation import _get_model
+    _get_model()
+    print("🚀 Servidor iniciado (FastSAM local)")
     yield
     print("🛑 Servidor apagándose...")
 
@@ -30,11 +34,18 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "Backend TFG con SAM2 (Replicate) funcionando"}
+    return {"status": "online", "message": "Backend TFG con FastSAM local funcionando"}
+
+
+def _read_image(contents: bytes) -> Image.Image:
+    """Lee bytes de imagen y corrige orientación EXIF."""
+    image = Image.open(io.BytesIO(contents))
+    image = ImageOps.exif_transpose(image)
+    return image
 
 
 # ==========================================================
-# SEGMENTACIÓN CON BOUNDING BOX (SAM2 vía Replicate)
+# SEGMENTACIÓN CON BOUNDING BOX MANUAL (FastSAM local)
 # ==========================================================
 @app.post("/segment_bbox/")
 async def segment_image_bbox(
@@ -59,10 +70,7 @@ async def segment_image_bbox(
             )
 
         contents = await file.read()
-
-        # ── Obtener dimensiones reales de la imagen ─────────────────────────
-        image = Image.open(io.BytesIO(contents))
-        image = ImageOps.exif_transpose(image)
+        image = _read_image(contents)
         w, h = image.size
 
         # ── Convertir coordenadas relativas (0-1) a píxeles ────────────────
@@ -75,24 +83,51 @@ async def segment_image_bbox(
         by1, by2 = min(py1, py2), max(py1, py2)
 
         print(
-            f"📦 Bbox: rel=[{rel_x1:.3f},{rel_y1:.3f},{rel_x2:.3f},{rel_y2:.3f}] "
+            f"📦 Bbox manual: rel=[{rel_x1:.3f},{rel_y1:.3f},{rel_x2:.3f},{rel_y2:.3f}] "
             f"→ px=[{bx1},{by1},{bx2},{by2}] sobre {w}×{h}"
         )
 
-        # ── Re-codificar la imagen corregida (EXIF) como PNG en bytes ──────
-        buf = io.BytesIO()
-        image.convert("RGB").save(buf, format="PNG")
-        clean_bytes = buf.getvalue()
+        # ── Segmentar con FastSAM local ────────────────────────────────────
+        result_png = await asyncio.to_thread(
+            segment_with_fastsam, image, [bx1, by1, bx2, by2]
+        )
 
-        # ── Segmentar vía Replicate ─────────────────────────────────────────
-        result_png = await segment_with_sam_api(clean_bytes, [bx1, by1, bx2, by2])
-
-        print("✅ Segmentación completada.")
         return Response(content=result_png, media_type="image/png")
 
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error en segmentación: {e}")
+        print(f"❌ Error en segmentación bbox: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==========================================================
+# SEGMENTACIÓN AUTOMÁTICA (Canny → bbox → FastSAM local)
+# ==========================================================
+@app.post("/segment_auto/")
+async def segment_image_auto(
+    file: UploadFile = File(...),
+):
+    """
+    Recibe solo una imagen. Detecta automáticamente el objeto principal
+    usando Canny edge detection para obtener el bounding box y después
+    segmenta con FastSAM.
+    """
+    try:
+        contents = await file.read()
+        image = _read_image(contents)
+
+        # ── Detectar bbox automáticamente con Canny ────────────────────────
+        bbox = await asyncio.to_thread(detectar_bbox_canny, image)
+        print(f"📦 Bbox automático (Canny): {bbox} sobre {image.size[0]}×{image.size[1]}")
+
+        # ── Segmentar con FastSAM local ────────────────────────────────────
+        result_png = await asyncio.to_thread(segment_with_fastsam, image, bbox)
+
+        return Response(content=result_png, media_type="image/png")
+
+    except Exception as e:
+        print(f"❌ Error en segmentación auto: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

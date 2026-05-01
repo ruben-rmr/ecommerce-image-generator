@@ -1,303 +1,284 @@
-# Documentación técnica — `segmentation.py`
+# Ecommerce Image Generator
 
-> **Ubicación:** `backend/app/segmentation.py`  
-> **Propósito:** Eliminación de fondo de imágenes de producto mediante segmentación semántica con el modelo **FastSAM**.
-
----
-
-## Índice
-
-1. [Visión general](#visión-general)
-2. [Dependencias](#dependencias)
-3. [Modelo de IA utilizado](#modelo-de-ia-utilizado)
-4. [Flujo de ejecución completo](#flujo-de-ejecución-completo)
-5. [Referencia de funciones](#referencia-de-funciones)
-   - [`load_model()`](#load_model)
-   - [`refine_mask(mask)`](#refine_maskmask)
-   - [`select_main_mask(masks_bin, h, w)`](#select_main_maskmasks_bin-h-w)
-   - [`bbox_of(binary)`](#bbox_ofbinary)
-   - [`bbox_iou(a, b)`](#bbox_ioua-b)
-   - [`fuse_fragments(seed_mask, masks_bin, iou_threshold)`](#fuse_fragmentsseed_mask-masks_bin-iou_threshold)
-   - [`remove_background(image_cv2)`](#remove_backgroundimage_cv2)
-6. [Parámetros de inferencia](#parámetros-de-inferencia)
-7. [Decisiones de diseño](#decisiones-de-diseño)
-8. [Salida de debug](#salida-de-debug)
+Aplicación web para la **segmentación automática de productos** en imágenes de e-commerce y la **generación de fondos personalizados** mediante IA. El usuario sube una fotografía de producto, delimita el objeto con un bounding box interactivo y obtiene un recorte con fondo transparente listo para uso comercial.
 
 ---
 
-## Visión general
+## Tabla de contenidos
 
-El módulo tiene un único punto de entrada público: `remove_background()`. Dado que esta función recibe una imagen en formato OpenCV (array NumPy BGR), devuelve la misma imagen con el fondo eliminado en formato **RGBA** (4 canales), utilizando el canal alfa para la transparencia.
-
-El proceso es completamente automático y funciona sin ninguna interacción del usuario ni coordenadas manuales. Internamente usa FastSAM para segmentar todos los objetos de la imagen y después aplica una estrategia de selección + fusión para obtener la máscara del objeto principal.
+1. [Arquitectura general](#arquitectura-general)
+2. [Stack tecnológico](#stack-tecnológico)
+3. [Estructura del proyecto](#estructura-del-proyecto)
+4. [Backend](#backend)
+   - [Endpoints de la API](#endpoints-de-la-api)
+   - [Módulo de segmentación](#módulo-de-segmentación-segmentationpy)
+   - [Módulo de generación de fondo](#módulo-de-generación-de-fondo-generationpy)
+   - [Utilidades de preprocesamiento](#utilidades-de-preprocesamiento-utilspy)
+5. [Frontend](#frontend)
+6. [Instalación y ejecución](#instalación-y-ejecución)
+7. [Requisitos del sistema](#requisitos-del-sistema)
+8. [APIs externas](#apis-externas)
 
 ---
 
-## Dependencias
+## Arquitectura general
 
-| Librería | Uso |
+```
+┌─────────────────────────┐       HTTP        ┌──────────────────────────────┐
+│       Frontend          │  ◄──────────────►  │          Backend             │
+│  React 19 + Vite + CSS  │   localhost:5173   │  FastAPI + Uvicorn           │
+│                         │        ↔           │  localhost:8000              │
+└─────────────────────────┘   fetch / CORS     └──────────┬───────────────────┘
+                                                          │
+                                               ┌──────────▼───────────────────┐
+                                               │     APIs externas            │
+                                               │  · Replicate (SAM2)          │
+                                               │  · Photoroom (generación)    │
+                                               └──────────────────────────────┘
+```
+
+El frontend envía la imagen y las coordenadas del bounding box al backend. El backend delega la segmentación al modelo **SAM2 (Segment Anything Model 2)** de Meta a través de la API de **Replicate**, compone el resultado RGBA y lo devuelve al cliente como PNG con fondo transparente.
+
+---
+
+## Stack tecnológico
+
+### Backend
+
+| Tecnología | Versión / Detalle | Propósito |
+|---|---|---|
+| Python | 3.x | Lenguaje del servidor |
+| FastAPI | — | Framework HTTP asíncrono |
+| Uvicorn | — | Servidor ASGI |
+| Replicate SDK | — | Llamadas al modelo SAM2 en la nube |
+| Pillow (PIL) | — | Manipulación de imágenes, composición RGBA |
+| OpenCV (`cv2`) | — | Operaciones morfológicas, inpainting, preprocesamiento |
+| NumPy | — | Manipulación de arrays/máscaras |
+| httpx | — | Cliente HTTP asíncrono para descarga de máscaras |
+| requests | — | Cliente HTTP para Photoroom API |
+| python-dotenv | — | Carga de variables de entorno |
+
+### Frontend
+
+| Tecnología | Versión | Propósito |
+|---|---|---|
+| React | 19.2 | Librería de UI |
+| Vite | 7.2 | Bundler y servidor de desarrollo |
+| Tailwind CSS | 4.1 | Framework de utilidades CSS |
+| PostCSS + Autoprefixer | — | Procesamiento de estilos |
+| ESLint | 9.x | Linting de código |
+
+---
+
+## Estructura del proyecto
+
+```
+ecommerce-image-generator/
+├── backend/
+│   └── app/
+│       ├── main.py              # Servidor FastAPI, endpoints y CORS
+│       ├── segmentation.py      # Segmentación con SAM2 vía Replicate API
+│       ├── generation.py        # Generación de fondos vía Photoroom API
+│       ├── utils.py             # Preprocesamiento de imagen (limpieza, feathering)
+│       ├── models/
+│       │   └── FastSAM-s.pt     # Pesos del modelo FastSAM (variante small)
+│       └── _debug_masks/        # Máscaras de debug generadas durante inferencia
+├── frontend/
+│   ├── index.html               # Punto de entrada HTML
+│   ├── package.json             # Dependencias y scripts npm
+│   ├── vite.config.js           # Configuración de Vite
+│   ├── tailwind.config.js       # Configuración de Tailwind CSS
+│   ├── postcss.config.js        # Configuración de PostCSS
+│   ├── eslint.config.js         # Configuración de ESLint
+│   └── src/
+│       ├── main.jsx             # Bootstrap de React (StrictMode + createRoot)
+│       ├── App.jsx              # Componente principal de la aplicación
+│       ├── App.css              # Estilos de la aplicación
+│       └── index.css            # Reset CSS base
+├── requirements.txt             # Dependencias Python
+├── .gitignore                   # Exclusiones de Git
+└── README.md                    # Este archivo
+```
+
+---
+
+## Backend
+
+### Endpoints de la API
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/` | Health check — devuelve estado del servidor |
+| `POST` | `/segment_bbox/` | Segmentación de imagen con bounding box |
+
+#### `POST /segment_bbox/`
+
+Recibe una imagen y un bounding box dibujado por el usuario. Devuelve un PNG con el objeto segmentado y fondo transparente.
+
+**Parámetros (multipart/form-data):**
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `file` | `UploadFile` | Imagen del producto (JPEG, PNG, etc.) |
+| `bbox` | `string` (JSON) | Array de 4 coordenadas relativas `[x1, y1, x2, y2]` en rango `[0, 1]` |
+
+**Flujo interno:**
+
+1. Parsea y valida las coordenadas del bounding box.
+2. Abre la imagen con Pillow y corrige la orientación EXIF (`ImageOps.exif_transpose`).
+3. Convierte las coordenadas relativas (0–1) a píxeles absolutos.
+4. Re-codifica la imagen corregida como PNG en bytes.
+5. Envía imagen + bbox a SAM2 vía Replicate.
+6. Devuelve el PNG resultante con `Content-Type: image/png`.
+
+**Respuesta:** `200 OK` con body binario PNG, o `400`/`500` con detalle del error.
+
+**Configuración CORS:** Permite todos los orígenes (`*`), métodos y cabeceras para facilitar el desarrollo local.
+
+---
+
+### Módulo de segmentación (`segmentation.py`)
+
+Gestiona la comunicación con el modelo **SAM2** (`meta/sam-2`) alojado en Replicate.
+
+**Función principal:** `segment_with_sam_api(image_bytes, bbox) -> bytes`
+
+| Paso | Operación |
 |---|---|
-| `ultralytics` | Carga y ejecución del modelo FastSAM |
-| `torch` | Detección de GPU (CUDA) y gestión de tensores |
-| `cv2` (OpenCV) | Operaciones morfológicas, redimensionado, composición RGBA |
-| `numpy` | Manipulación de máscaras como arrays |
-| `os` | Resolución de rutas absolutas de forma portable |
+| 1 | Codifica la imagen en Base64 y la envuelve como `data:` URI |
+| 2 | Envía la imagen y el bbox a `replicate.run()` en un hilo separado (`asyncio.to_thread`) para no bloquear el event loop |
+| 3 | Recibe la URL de la máscara generada por SAM2 |
+| 4 | Descarga la máscara con `httpx` (cliente asíncrono, timeout 60s) |
+| 5 | Abre la imagen original (RGB) y la máscara (escala de grises) con Pillow |
+| 6 | Redimensiona la máscara al tamaño de la original si difieren |
+| 7 | Compone la imagen RGBA final aplicando la máscara como canal alfa |
 
 ---
 
-## Modelo de IA utilizado
+### Módulo de generación de fondo (`generation.py`)
 
-**FastSAM** (_Fast Segment Anything Model_) es una versión acelerada de SAM (Meta AI) basada en YOLOv8-seg. Opera en dos fases:
+Integración con la **API de Photoroom** para generar fondos personalizados a partir de un prompt de texto.
 
-1. **Everything mode:** segmenta todos los objetos visibles de la imagen y genera `N` máscaras candidatas, una por región detectada.
-2. **Prompt mode:** dada una referencia (punto, caja, texto), selecciona o refina la máscara correspondiente.
+**Función:** `generate_background_via_api(image_bytes, prompt) -> bytes`
 
-El módulo usa el modo _everything_ y luego aplica selección por punto central de forma manual, lo que es equivalente al prompt de punto nativo pero sin la dependencia de `FastSAMPrompt`.
+- Envía la imagen segmentada (PNG con fondo transparente) al endpoint `v2/edit` de Photoroom.
+- Aplica un padding de `0.1` para que el objeto tenga margen visual.
+- El prompt describe el fondo deseado (p.ej. "fondo minimalista blanco con sombra suave").
+- Devuelve los bytes de la imagen con el nuevo fondo generado.
 
-Los pesos del modelo se cargan desde:
-
-```
-backend/app/models/FastSAM-s.pt
-```
-
-La variante `-s` (small) es más rápida y suficiente para imágenes de producto. Existe también `-x` (extra-large) para mayor precisión si el hardware lo permite.
+> **Nota:** Este módulo está implementado pero aún no conectado a un endpoint público en `main.py`.
 
 ---
 
-## Flujo de ejecución completo
+### Utilidades de preprocesamiento (`utils.py`)
 
-```
-Imagen BGR (OpenCV)
-        │
-        ▼
-┌─────────────────────────────┐
-│  FastSAM "everything mode"  │  → N máscaras candidatas (H_mask × W_mask)
-└─────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────┐
-│  Redimensionar todas las    │  → N máscaras binarias (H_orig × W_orig)
-│  máscaras al tamaño orig.   │
-└─────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────┐
-│  select_main_mask()         │  → máscara semilla del objeto central
-│  (point prompt robusto)     │
-└─────────────────────────────┘
-        │
-        ├── semilla ≥ 8% imagen ──────────────────────────────┐
-        │                                                      │
-        ▼                                                      │
-┌─────────────────────────────┐                               │
-│  fuse_fragments()           │  → objeto multicolor: une     │
-│  (bbox-IoU iterativo)       │     fragmentos al objeto      │
-└─────────────────────────────┘                               │
-        │                                                      │
-        └──────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────┐
-│  refine_mask()              │  → Close + Open + GaussianBlur
-└─────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────┐
-│  Composición RGBA           │  → imagen con canal alfa
-└─────────────────────────────┘
-        │
-        ▼
-  Imagen RGBA (resultado)
-```
+**Función:** `pre_procesar_objeto_universal(pil_image_original) -> PIL.Image`
 
----
+Limpieza avanzada de la imagen segmentada antes de enviarla a APIs externas de generación de fondo. Elimina artefactos de borde (halos blancos) que pueden degradar la calidad del resultado final.
 
-## Referencia de funciones
+**Pipeline:**
 
-### `load_model()`
-
-```python
-def load_model() -> None
-```
-
-Carga el modelo FastSAM desde disco y lo almacena en la variable global `model`. Se llama **una sola vez** al arrancar el servidor para evitar la costosa carga en cada petición.
-
-**Comportamiento:**
-- Construye la ruta al archivo de pesos usando `os.path.abspath(__file__)`, lo que garantiza que funciona independientemente del directorio de trabajo actual.
-- Si hay GPU disponible (`torch.cuda.is_available()`), mueve el modelo a CUDA y ejecuta un **warmup** con una imagen negra de 640×640. El warmup precalienta los kernels CUDA y evita que la primera inferencia real sea lenta.
-- Si no hay GPU, el modelo corre en CPU con un aviso.
-
----
-
-### `refine_mask(mask)`
-
-```python
-def refine_mask(mask: np.ndarray) -> np.ndarray
-```
-
-Limpia y suaviza una máscara binaria para mejorar la calidad visual del recorte. Acepta máscaras con valores en rango `[0, 1]` o `[0, 255]` y siempre devuelve `uint8`.
-
-**Pipeline interno:**
-
-| Paso | Operación | Kernel | Efecto |
-|---|---|---|---|
-| 1 | `MORPH_CLOSE` | 7×7 | Rellena huecos internos pequeños (p.ej. letras blancas sobre fondo del objeto) |
-| 2 | `MORPH_OPEN` | 3×3 | Elimina píxeles de ruido aislados en el exterior de la máscara |
-| 3 | `GaussianBlur` | 5×5 | Desenfoca suavemente el borde → transición natural (feathering) |
-
-> **Por qué CLOSE antes que OPEN:** El cierre morfológico rellena zonas interiores sin expandir el contorno exterior. Si se aplicase OPEN primero, se eliminarían fragmentos antes de poder unirlos, perdiendo partes del objeto.
-
----
-
-### `select_main_mask(masks_bin, h, w)`
-
-```python
-def select_main_mask(masks_bin: list[np.ndarray], h: int, w: int) -> tuple[np.ndarray, int]
-```
-
-Implementa un **point prompt robusto**: selecciona la máscara más grande que contenga el objeto en el centro de la imagen, sin depender de un único píxel.
-
-**Puntos de muestreo** (5 puntos formando una cruz centrada con margen del 7 %):
-```
-         ·          ← (cx, cy - 7%)
-  ·      ●      ·   ← (cx ± 7%, cy) y centro exacto (cx, cy)
-         ·          ← (cx, cy + 7%)
-```
-
-**Lógica de selección:**
-1. Para cada máscara, comprueba si alguno de los 5 puntos está activo (`== 1`) en ella.
-2. De todas las máscaras con hit, se queda con la de **mayor área en píxeles** (descarta ruido pequeño o logos menores).
-3. Si ninguna máscara tiene hit en los 5 puntos (objeto muy descentrado), devuelve la máscara globalmente más grande como fallback.
-
-**Devuelve:** `(máscara_binaria, área_en_píxeles)`
-
----
-
-### `bbox_of(binary)`
-
-```python
-def bbox_of(binary: np.ndarray) -> tuple[int,int,int,int] | None
-```
-
-Calcula el **bounding box** mínimo de una máscara binaria.
-
-- Proyecta la máscara sobre filas y columnas con `np.any()`.
-- Devuelve `(x1, y1, x2, y2)` en coordenadas de imagen.
-- Devuelve `None` si la máscara está vacía.
-
----
-
-### `bbox_iou(a, b)`
-
-```python
-def bbox_iou(a: tuple, b: tuple) -> float
-```
-
-Calcula el **Intersection over Union (IoU)** entre dos bounding boxes en formato `(x1, y1, x2, y2)`.
-
-```
-         IoU = Área(intersección) / Área(unión)
-```
-
-Rango: `[0.0, 1.0]`. Devuelve `0.0` si no hay intersección.
-
----
-
-### `fuse_fragments(seed_mask, masks_bin, iou_threshold)`
-
-```python
-def fuse_fragments(
-    seed_mask:      np.ndarray,
-    masks_bin:      list[np.ndarray],
-    iou_threshold:  float = 0.15
-) -> np.ndarray
-```
-
-Fusiona fragmentos del objeto principal cuando FastSAM lo ha segmentado en varias partes pequeñas (típico en objetos con múltiples colores, diseños gráficos, o etiquetas).
-
-**Algoritmo (expansión iterativa por bounding-box):**
-
-1. Comienza con la `seed_mask` como unión inicial.
-2. En cada pasada, calcula el bounding box de la unión actual.
-3. Para cada máscara candidata:
-   - Si ya está incluida en la unión (>90 % de sus píxeles coinciden), se salta.
-   - Si su bounding box tiene IoU ≥ `iou_threshold` con el de la unión, se añade (`np.maximum`).
-4. Repite hasta que ninguna máscara nueva pueda añadirse o hasta un máximo de 5 pasadas.
-
-**Por qué bbox-IoU y no solapamiento de píxeles:**  
-El solapamiento de píxeles requiere que las máscaras se toquen físicamente. El bbox-IoU es más tolerante: si el bounding box de un fragmento está dentro del área del objeto, se une aunque haya un pequeño hueco entre ellos (p.ej. el espacio entre el tapón y el cuerpo de un envase).
-
-**Por qué es seguro para objetos monocolor:**  
-Esta función solo se llama si la semilla cubre menos del 8 % de la imagen. Para un objeto monocolor bien segmentado la semilla siempre supera ese umbral → la función nunca se ejecuta.
-
----
-
-### `remove_background(image_cv2)`
-
-```python
-def remove_background(image_cv2: np.ndarray) -> np.ndarray | None
-```
-
-**Función principal y único punto de entrada público del módulo.**
-
-Recibe una imagen en formato OpenCV (BGR, `uint8`) y devuelve la misma imagen con fondo transparente (RGBA, `uint8`), o `None` si no se detecta ningún objeto.
-
-**Parámetros de inferencia usados:**
-
-| Parámetro | Valor | Razón |
+| Paso | Técnica | Detalle |
 |---|---|---|
-| `conf` | `0.4` | Captura partes del objeto sin añadir demasiado ruido de fondo |
-| `iou` | `0.9` | Suprime máscaras duplicadas agresivamente |
-| `imgsz` | `640` | Resolución probada y estable; valores mayores distorsionaban la generación de máscaras |
-| `retina_masks` | `True` | Devuelve máscaras de alta resolución en vez de las de baja resolución internas |
-
-**Pasos internos:**
-
-1. **Inferencia** — FastSAM genera `N` máscaras.
-2. **Normalización** — todas las máscaras se redimensionan al tamaño original y se binariza con umbral 0.5.
-3. **Selección** — `select_main_mask()` identifica la máscara del objeto central.
-4. **Fusión condicional** — si la semilla < 8 % de la imagen, `fuse_fragments()` une los fragmentos.
-5. **Refinamiento** — `refine_mask()` aplica operaciones morfológicas y suavizado.
-6. **Composición** — se separan los canales BGR, se añade la máscara como canal alfa y se combina en RGBA.
+| 1 | **Inpainting Telea** | Rellena píxeles semi-transparentes del borde con colores interpolados del objeto, eliminando halos blancos o sucios |
+| 2 | **Erosión elíptica** | Contrae el canal alfa 1 px con kernel elíptico (`MORPH_ELLIPSE` 3x3), respetando curvas naturales del objeto |
+| 3 | **Micro-feathering** | Aplica `GaussianBlur(radius=0.8)` al alfa para una transición suave y fotográfica entre objeto y fondo |
 
 ---
 
-## Parámetros de inferencia
+## Frontend
 
-Los parámetros de FastSAM tienen un impacto decisivo en la calidad de la segmentación:
+Aplicación de página única (SPA) construida con React 19 y Vite.
 
-| Parámetro | Rango típico | Efecto al aumentar |
-|---|---|---|
-| `conf` | 0.1 – 0.9 | Más máscaras pero más ruido |
-| `iou` | 0.1 – 0.95 | Menos duplicados (valor alto = más agresivo) |
-| `imgsz` | 320 – 1280 | Más detalle pero puede cambiar el comportamiento de detección |
+### Interfaz
 
-> ⚠️ **Importante:** Cambiar `imgsz` a valores por encima de 640 puede hacer que FastSAM genere más máscaras pequeñas en objetos simples, lo que rompe la selección por punto central. Modificar este valor requiere validación cuidadosa.
+La interfaz se divide en dos paneles:
 
----
+- **Panel izquierdo (entrada):** Zona de carga de imagen (drag & drop o selector de archivos) con canvas interactivo para dibujar el bounding box.
+- **Panel derecho (resultado):** Previsualización del resultado segmentado sobre fondo de tablero de ajedrez (indicador de transparencia), con botón de descarga.
 
-## Decisiones de diseño
+### Flujo de interacción
 
-### ¿Por qué no usar `FastSAMPrompt` directamente?
+1. **Carga de imagen:** El usuario arrastra o selecciona un archivo de imagen.
+2. **Dibujo del bounding box:** Click + drag sobre la imagen para delimitar el objeto. Las coordenadas se calculan en posición relativa (0–1) respecto a la imagen real, compensando el `object-fit: contain` del elemento `<img>`.
+3. **Segmentación:** El botón "Segmentar" envía la imagen y el bbox al endpoint `/segment_bbox/`.
+4. **Resultado:** El PNG con fondo transparente se muestra en el panel derecho y se puede descargar.
 
-La clase `FastSAMPrompt` de Ultralytics ofrece un `point_prompt` nativo, pero su API ha cambiado entre versiones (el parámetro `points` puede aceptar distintos formatos según la versión instalada). El enfoque manual de `select_main_mask()` es equivalente en resultado y más robusto ante actualizaciones de la librería.
+### Detalles técnicos del canvas de bounding box
 
-### ¿Por qué bounding-box IoU para la fusión y no solapamiento de píxeles?
-
-El solapamiento de píxeles requiere que los fragmentos se toquen físicamente. En un envase de zumo, por ejemplo, el área del tapón puede estar separada del cuerpo por un pequeño hueco. El bbox-IoU une correctamente estas partes al comparar sus envolventes rectangulares.
-
-### ¿Por qué el umbral del 8 % para activar la fusión?
-
-En imágenes de producto estándar, el objeto ocupa al menos el 15–40 % del encuadre. Si la máscara principal es menor al 8 %, indica claramente que el objeto fue fragmentado por FastSAM en partes pequeñas. Este umbral evita activar la fusión en objetos monocolor correctamente segmentados.
+- 5 puntos de muestreo en cruz centrada con margen del 7% para un prompt de punto robusto.
+- Compensación automática del aspect ratio entre el elemento DOM y la imagen natural (`getImageBounds()`).
+- Conversión bidireccional coordenadas de pantalla ↔ coordenadas relativas de imagen.
+- Descarte de cajas accidentales (< 1% del ancho o alto de la imagen).
 
 ---
 
-## Salida de debug
+## Instalación y ejecución
 
-Cada llamada a `remove_background()` guarda automáticamente el resultado en:
+### Prerrequisitos
 
+- Python 3.10+
+- Node.js 18+
+- Cuenta en [Replicate](https://replicate.com/) con token de API configurado (`REPLICATE_API_TOKEN`)
+
+### Backend
+
+```bash
+# Desde la raíz del proyecto
+python -m venv venv
+.\venv\Scripts\activate        # Windows
+# source venv/bin/activate     # Linux/macOS
+
+pip install -r requirements.txt
+
+# Iniciar el servidor
+cd backend/app
+uvicorn main:app --reload
 ```
-debug_recorte_perfecto.png
+
+El servidor arranca en `http://localhost:8000`.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-Este archivo se escribe en el **directorio de trabajo actual** del proceso (normalmente la raíz del backend). Es útil para inspeccionar visualmente la máscara generada sin necesidad de conectarse a la interfaz. Para desactivarlo en producción, basta con comentar la línea `cv2.imwrite(...)`.
+El cliente arranca en `http://localhost:5173` (puerto por defecto de Vite).
+
+### Variables de entorno
+
+| Variable | Descripción |
+|---|---|
+| `REPLICATE_API_TOKEN` | Token de autenticación para la API de Replicate |
+
+---
+
+## Requisitos del sistema
+
+| Componente | Mínimo recomendado |
+|---|---|
+| RAM | 8 GB |
+| GPU | Opcional (la inferencia se ejecuta en la nube vía Replicate) |
+| Almacenamiento | ~200 MB (dependencias + pesos FastSAM-s.pt) |
+| Red | Conexión a Internet requerida para las APIs de Replicate y Photoroom |
+
+---
+
+## APIs externas
+
+### Replicate — SAM2 (Meta)
+
+- **Modelo:** `meta/sam-2`
+- **Propósito:** Segmentación semántica de objetos mediante bounding box.
+- **Tipo de entrada:** Imagen (Base64 data URI) + coordenadas de bounding box en píxeles.
+- **Tipo de salida:** URL a la máscara binaria generada (escala de grises).
+
+### Photoroom — Image Editing API
+
+- **Endpoint:** `https://image-api.photoroom.com/v2/edit`
+- **Propósito:** Generación de fondos a partir de prompt textual sobre imagen segmentada.
+- **Tipo de entrada:** Imagen PNG (multipart) + prompt de fondo.
+- **Tipo de salida:** Imagen con fondo generado.
