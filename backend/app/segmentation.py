@@ -81,7 +81,122 @@ def _point_to_canvas(x: int, y: int, meta: dict) -> tuple[int, int]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. INFERENCIA: correr FastSAM sobre el canvas preprocesado
+# 2. FILTRADO DE BORDES: descartar máscaras individuales que tocan el borde
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _filter_border_masks(results, meta: dict, canvas_size: int):
+    """
+    Descarta máscaras individuales que tocan los bordes del contenido
+    de la imagen original (no el padding del canvas).
+    Si todas las máscaras tocan bordes, no se filtra ninguna para no
+    perder el resultado.
+    """
+    import torch
+
+    masks_data = results[0].masks.data  # (N, mH, mW)
+    masks_np = masks_data.cpu().numpy()
+    n_masks, mH, mW = masks_np.shape
+
+    # Mapear bordes del contenido de imagen al espacio de las máscaras
+    sx, sy = mW / canvas_size, mH / canvas_size
+    left = int(meta["pad_x"] * sx)
+    right = int((meta["pad_x"] + meta["new_w"]) * sx) - 1
+    top = int(meta["pad_y"] * sy)
+    bottom = int((meta["pad_y"] + meta["new_h"]) * sy) - 1
+
+    # Clamp por seguridad
+    left = max(0, min(left, mW - 1))
+    right = max(0, min(right, mW - 1))
+    top = max(0, min(top, mH - 1))
+    bottom = max(0, min(bottom, mH - 1))
+
+    keep = []
+    for i in range(n_masks):
+        m = masks_np[i] > 0.5
+        touches = (
+            m[top, left:right + 1].any() or      # borde superior
+            m[bottom, left:right + 1].any() or    # borde inferior
+            m[top:bottom + 1, left].any() or      # borde izquierdo
+            m[top:bottom + 1, right].any()         # borde derecho
+        )
+        if touches:
+            print(f"   🚫 Máscara {i} descartada (toca borde de imagen)")
+        else:
+            keep.append(i)
+
+    if len(keep) == n_masks:
+        return  # Ninguna tocaba bordes, no hay nada que filtrar
+
+    if len(keep) == 0:
+        print("⚠️  Todas las máscaras tocan bordes — se conservan todas")
+        return  # No filtrar para no quedarnos sin resultado
+
+    print(f"   Filtrado de bordes: {n_masks} → {len(keep)} máscaras")
+    keep_t = torch.tensor(keep, dtype=torch.long)
+    results[0].masks.data = masks_data[keep_t]
+    if results[0].boxes is not None:
+        results[0].boxes = results[0].boxes[keep_t]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2b. FILTRADO POR CONTENCIÓN EN BBOX: descartar máscaras mayormente fuera
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _filter_bbox_containment(results, canvas_bbox: list[int], canvas_size: int, min_inside_ratio: float = 0.55):
+    """
+    Descarta máscaras donde menos del min_inside_ratio de su área total
+    cae dentro del bbox del usuario. Esto elimina objetos de fondo que
+    solapan parcialmente el bbox pero no son el objeto objetivo.
+
+    Una máscara del objeto real que sangre ligeramente fuera del bbox
+    (imprecisión de FastSAM) típicamente tiene >70% dentro y pasa el filtro.
+
+    Si todas las máscaras serían descartadas, no se filtra (protección).
+    """
+    import torch
+
+    masks_data = results[0].masks.data  # (N, mH, mW)
+    masks_np = masks_data.cpu().numpy()
+    n_masks, mH, mW = masks_np.shape
+
+    x1, y1, x2, y2 = canvas_bbox
+    sx, sy = mW / canvas_size, mH / canvas_size
+    mx1, my1 = int(x1 * sx), int(y1 * sy)
+    mx2, my2 = int(x2 * sx), int(y2 * sy)
+
+    # Región del bbox en espacio de máscaras
+    bbox_mask = np.zeros((mH, mW), dtype=bool)
+    bbox_mask[my1:my2, mx1:mx2] = True
+
+    keep = []
+    for i in range(n_masks):
+        m = masks_np[i] > 0.5
+        mask_area = m.sum()
+        if mask_area == 0:
+            continue
+        inside_area = np.logical_and(m, bbox_mask).sum()
+        inside_ratio = inside_area / mask_area
+        if inside_ratio >= min_inside_ratio:
+            keep.append(i)
+        else:
+            print(f"   🚫 Máscara {i} descartada (solo {100*inside_ratio:.1f}% dentro del bbox)")
+
+    if len(keep) == n_masks:
+        return  # Todas pasan, no hay nada que filtrar
+
+    if len(keep) == 0:
+        print("⚠️  Todas las máscaras fuera del bbox — se conservan todas")
+        return
+
+    print(f"   Filtrado bbox containment: {n_masks} → {len(keep)} máscaras")
+    keep_t = torch.tensor(keep, dtype=torch.long)
+    results[0].masks.data = masks_data[keep_t]
+    if results[0].boxes is not None:
+        results[0].boxes = results[0].boxes[keep_t]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. INFERENCIA: correr FastSAM sobre el canvas preprocesado
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_fastsam(
@@ -96,8 +211,8 @@ def run_fastsam(
     Ejecuta FastSAM sobre el canvas preprocesado y selecciona la mejor máscara.
 
     Estrategia de prompts:
-      1. Point prompt (centro del bbox) — más estable para objetos grandes.
-      2. Fallback a box prompt si point no da buen resultado.
+      1. Box prompt (IoU) — robusto para formas irregulares.
+      2. Fallback a point prompt (centro del bbox).
       3. Fallback a selección manual por score compuesto.
 
     Returns:
@@ -132,78 +247,124 @@ def run_fastsam(
         print("⚠️  FastSAM no generó máscaras")
         return None
 
+    # ── Filtrar máscaras individuales que tocan bordes de la imagen ──────
+    _filter_border_masks(results, meta, canvas_size)
+    if results[0].masks is None or results[0].masks.data.shape[0] == 0:
+        print("⚠️  Todas las máscaras tocaban bordes — ninguna disponible")
+        return None
+
+    # ── Filtrar máscaras mayormente fuera del bbox del usuario ────────────
+    _filter_bbox_containment(results, cb, canvas_size)
+    if results[0].masks is None or results[0].masks.data.shape[0] == 0:
+        print("⚠️  Todas las máscaras fuera del bbox — ninguna disponible")
+        return None
+
     if debug:
         _debug_masks(results, cb, canvas_size)
 
-    # ── Intento 1: Point prompt ──────────────────────────────────────────
-    mask = _try_point_prompt(canvas, results, pt_x, pt_y, cb, canvas_size)
+    # ── Intento 1: Box prompt (IoU, agnóstico a la forma) ─────────────────
+    mask = _try_box_prompt(canvas, results, cb, canvas_size)
     if mask is not None:
         return mask
 
-    # ── Intento 2: Box prompt ────────────────────────────────────────────
-    mask = _try_box_prompt(canvas, results, cb, canvas_size)
+    # ── Intento 2: Point prompt (fallback para objetos centrados) ────────
+    mask = _try_point_prompt(canvas, results, pt_x, pt_y, cb, canvas_size)
     if mask is not None:
         return mask
 
     # ── Intento 3: Selección manual por score compuesto ──────────────────
     print("⚠️  Prompts fallaron, selección manual por score")
-    return _select_best_mask(results, cb, canvas_size)
+    return _select_best_mask(results, cb, canvas_size, canvas)
 
 
 def _try_point_prompt(canvas, results, pt_x, pt_y, canvas_bbox, canvas_size):
-    """Intenta seleccionar máscara con point prompt (centro del bbox)."""
+    """Selecciona la máscara que contiene el punto dado (centro del bbox)."""
     try:
-        from ultralytics.models.fastsam import FastSAMPrompt
-        prompt = FastSAMPrompt(canvas, results, device="cpu")
-        ann = prompt.point_prompt(points=[[pt_x, pt_y]], pointlabel=[1])
+        masks_data = results[0].masks.data.cpu().numpy()  # (N, mH, mW)
+        n_masks, mH, mW = masks_data.shape
 
-        mask = _extract_mask(ann, canvas_size)
-        if mask is not None:
-            # Validar: la máscara debe cubrir al menos 20% del bbox
-            if _mask_covers_bbox(mask, canvas_bbox, min_coverage=0.20):
-                print("✅ Máscara obtenida vía point_prompt")
-                return mask
-            else:
-                print("⚠️  point_prompt: máscara insuficiente (baja cobertura)")
+        # Mapear punto al espacio de las máscaras internas
+        sx, sy = mW / canvas_size, mH / canvas_size
+        px, py = int(pt_x * sx), int(pt_y * sy)
+        px = max(0, min(px, mW - 1))
+        py = max(0, min(py, mH - 1))
+
+        # Buscar la mejor máscara que contenga el punto
+        best_idx = -1
+        best_score = -1.0
+        for i in range(n_masks):
+            m = masks_data[i] > 0.5
+            if not m[py, px]:
+                continue
+            # Preferir máscaras más pequeñas (más específicas)
+            area = m.sum()
+            score = 1.0 / (area + 1e-6)
+            if score > best_score:
+                best_score = score
+                best_idx = i
+
+        if best_idx < 0:
+            print("⚠️  point_prompt: ninguna máscara contiene el punto")
+            return None
+
+        mask_bin = (masks_data[best_idx] > 0.5).astype(np.uint8) * 255
+        if mask_bin.shape[0] != canvas_size or mask_bin.shape[1] != canvas_size:
+            mask_bin = cv2.resize(mask_bin, (canvas_size, canvas_size),
+                                  interpolation=cv2.INTER_NEAREST)
+
+        if _mask_covers_bbox(mask_bin, canvas_bbox, min_coverage=0.20):
+            print("✅ Máscara obtenida vía point_prompt")
+            return mask_bin
+        else:
+            print("⚠️  point_prompt: máscara insuficiente (baja cobertura)")
     except Exception as e:
         print(f"⚠️  point_prompt falló: {e}")
     return None
 
 
 def _try_box_prompt(canvas, results, canvas_bbox, canvas_size):
-    """Intenta seleccionar máscara con box prompt."""
+    """Selecciona la máscara con mayor IoU respecto al bbox."""
     try:
-        from ultralytics.models.fastsam import FastSAMPrompt
-        prompt = FastSAMPrompt(canvas, results, device="cpu")
-        ann = prompt.box_prompt(bbox=canvas_bbox)
+        masks_data = results[0].masks.data.cpu().numpy()  # (N, mH, mW)
+        n_masks, mH, mW = masks_data.shape
+        x1, y1, x2, y2 = canvas_bbox
 
-        mask = _extract_mask(ann, canvas_size)
-        if mask is not None:
-            if _mask_covers_bbox(mask, canvas_bbox, min_coverage=0.15):
-                print("✅ Máscara obtenida vía box_prompt")
-                return mask
-            else:
-                print("⚠️  box_prompt: máscara insuficiente (baja cobertura)")
+        # Mapear bbox al espacio de las máscaras internas
+        sx, sy = mW / canvas_size, mH / canvas_size
+        mx1, my1 = int(x1 * sx), int(y1 * sy)
+        mx2, my2 = int(x2 * sx), int(y2 * sy)
+        bbox_mask = np.zeros((mH, mW), dtype=bool)
+        bbox_mask[my1:my2, mx1:mx2] = True
+        bbox_area = bbox_mask.sum()
+
+        best_idx = -1
+        best_iou = -1.0
+        for i in range(n_masks):
+            m = masks_data[i] > 0.5
+            inter = np.logical_and(m, bbox_mask).sum()
+            union = np.logical_or(m, bbox_mask).sum()
+            iou = inter / (union + 1e-6)
+            if iou > best_iou:
+                best_iou = iou
+                best_idx = i
+
+        if best_idx < 0:
+            return None
+
+        mask_bin = (masks_data[best_idx] > 0.5).astype(np.uint8) * 255
+        if mask_bin.shape[0] != canvas_size or mask_bin.shape[1] != canvas_size:
+            mask_bin = cv2.resize(mask_bin, (canvas_size, canvas_size),
+                                  interpolation=cv2.INTER_NEAREST)
+
+        if _mask_covers_bbox(mask_bin, canvas_bbox, min_coverage=0.15):
+            print(f"✅ Máscara obtenida vía box_prompt (IoU={best_iou:.3f})")
+            return mask_bin
+        else:
+            print("⚠️  box_prompt: máscara insuficiente (baja cobertura)")
     except Exception as e:
         print(f"⚠️  box_prompt falló: {e}")
     return None
 
-
-def _extract_mask(ann, expected_size: int) -> np.ndarray | None:
-    """Extrae máscara binaria de la respuesta de FastSAMPrompt."""
-    if ann is None:
-        return None
-    mask_np = ann.cpu().numpy() if hasattr(ann, "cpu") else np.array(ann)
-    if mask_np.ndim == 3:
-        mask_np = mask_np[0]
-    if mask_np.size == 0 or mask_np.max() == 0:
-        return None
-    mask_bin = (mask_np > 0.5).astype(np.uint8) * 255
-    # Asegurar tamaño correcto (INTER_NEAREST para binario)
-    if mask_bin.shape[0] != expected_size or mask_bin.shape[1] != expected_size:
-        mask_bin = cv2.resize(mask_bin, (expected_size, expected_size),
-                              interpolation=cv2.INTER_NEAREST)
-    return mask_bin
 
 
 def _mask_covers_bbox(mask: np.ndarray, bbox: list[int], min_coverage: float) -> bool:
@@ -223,12 +384,14 @@ def _mask_covers_bbox(mask: np.ndarray, bbox: list[int], min_coverage: float) ->
 # 3. SELECCIÓN MANUAL (fallback): score compuesto coverage × overlap × centroid
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _select_best_mask(results, canvas_bbox: list[int], canvas_size: int) -> np.ndarray | None:
+def _select_best_mask(results, canvas_bbox: list[int], canvas_size: int, canvas: np.ndarray = None) -> np.ndarray | None:
     """
     Selecciona la mejor máscara con score compuesto.
     Las coordenadas ya están en espacio del canvas.
 
-    Score = coverage × overlap^0.5 × centroid_bonus
+    Score = coverage × overlap^0.5 × centroid_bonus × edge_bonus
+    El edge_bonus usa Canny para premiar máscaras cuyos bordes coinciden
+    con bordes reales de la imagen (30% de peso).
     """
     x1, y1, x2, y2 = canvas_bbox
 
@@ -260,6 +423,15 @@ def _select_best_mask(results, canvas_bbox: list[int], canvas_size: int) -> np.n
         overlap = (inter / (mask_area + 1e-6)) ** 0.5
         centroid_bonus = 1.2 if m[cy, cx] else 0.8
         score = coverage * overlap * centroid_bonus
+
+        # Edge-guided bonus: premiar máscaras alineadas con bordes reales
+        if canvas is not None:
+            mask_resized = (m.astype(np.uint8) * 255)
+            if mask_resized.shape[0] != canvas_size or mask_resized.shape[1] != canvas_size:
+                mask_resized = cv2.resize(mask_resized, (canvas_size, canvas_size),
+                                          interpolation=cv2.INTER_NEAREST)
+            edge_score = _edge_guided_score(canvas, mask_resized, canvas_bbox, canvas_size)
+            score = score * (0.7 + 0.3 * edge_score)
 
         if score > best_score:
             best_score = score
@@ -300,6 +472,180 @@ def postprocess_mask(mask_canvas: np.ndarray, meta: dict) -> np.ndarray:
     mask_original = cv2.resize(mask_cropped, (orig_w, orig_h),
                                interpolation=cv2.INTER_NEAREST)
     return mask_original
+
+
+def _clip_mask_to_bbox(mask: np.ndarray, bbox: list[int]) -> np.ndarray:
+    """
+    Recorta la máscara estrictamente al bbox del usuario.
+    Todos los píxeles fuera del bbox se ponen a 0.
+
+    Esto garantiza que el resultado final de segmentación esté siempre
+    contenido dentro del bounding box manual.
+
+    Args:
+        mask: Máscara binaria (H, W), valores 0 o 255, coordenadas originales.
+        bbox: [x1, y1, x2, y2] en píxeles de la imagen original.
+    Returns:
+        Máscara clipeada con misma forma.
+    """
+    x1, y1, x2, y2 = bbox
+    h, w = mask.shape[:2]
+
+    clipped = np.zeros_like(mask)
+    x1c, y1c = max(0, x1), max(0, y1)
+    x2c, y2c = min(w, x2), min(h, y2)
+    clipped[y1c:y2c, x1c:x2c] = mask[y1c:y2c, x1c:x2c]
+    return clipped
+
+
+def _edge_guided_score(canvas: np.ndarray, mask_bin: np.ndarray, canvas_bbox: list[int], canvas_size: int) -> float:
+    """
+    Puntúa cuán bien los bordes de una máscara se alinean con bordes reales
+    detectados por Canny dentro del bbox.
+
+    Pasos:
+    1. Extraer región del bbox del canvas RGB.
+    2. Canny edge detection con umbrales adaptativos.
+    3. Dilatar bordes para zona de tolerancia.
+    4. Calcular contorno de la máscara candidata en la región del bbox.
+    5. Medir qué % del contorno coincide con bordes Canny.
+
+    Returns:
+        Score entre 0.0 y 1.0. Mayor = mejor alineamiento con bordes reales.
+    """
+    x1, y1, x2, y2 = canvas_bbox
+    # Clamp por seguridad
+    h_canvas, w_canvas = canvas.shape[:2]
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w_canvas, x2), min(h_canvas, y2)
+
+    if x2 <= x1 or y2 <= y1:
+        return 0.0
+
+    roi = canvas[y1:y2, x1:x2]
+
+    gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+    median_val = np.median(blurred)
+    low = int(max(0, 0.66 * median_val))
+    high = int(min(255, 1.33 * median_val))
+    edges = cv2.Canny(blurred, low, high)
+
+    # Dilatar bordes para tolerancia de 2px
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    edge_zone = cv2.dilate(edges, kernel, iterations=1)
+
+    # Obtener contorno de la máscara dentro de la región del bbox
+    # La máscara está en espacio de canvas completo, extraer la región del bbox
+    mask_roi = mask_bin[y1:y2, x1:x2]
+    mask_u8 = (mask_roi > 127).astype(np.uint8) if mask_roi.max() > 1 else mask_roi.astype(np.uint8)
+    contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+    if not contours:
+        return 0.0
+
+    # Dibujar contorno como línea de 1px
+    contour_img = np.zeros_like(mask_u8)
+    cv2.drawContours(contour_img, contours, -1, 1, 1)
+
+    contour_pixels = contour_img.sum()
+    if contour_pixels == 0:
+        return 0.0
+
+    # Cuántos píxeles del contorno caen sobre bordes detectados
+    aligned = np.logical_and(contour_img > 0, edge_zone > 0).sum()
+    return float(aligned / contour_pixels)
+
+
+def _remove_border_components(mask: np.ndarray) -> np.ndarray:
+    """
+    Elimina componentes conexos de la máscara binaria que tocan cualquier
+    borde de la imagen. Esto descarta fragmentos espurios (pelo, fondo, etc.)
+    que se extienden hasta el borde, sin descartar el objeto principal que
+    normalmente está centrado.
+
+    Si TODOS los componentes tocan bordes, devuelve la máscara sin cambios
+    para no perder el resultado.
+    """
+    h, w = mask.shape[:2]
+    mask_bin = (mask > 127).astype(np.uint8)
+
+    n_labels, labels = cv2.connectedComponents(mask_bin)
+    # label 0 = fondo, componentes reales van de 1 a n_labels-1
+    if n_labels <= 1:
+        return mask  # Sin componentes, nada que filtrar
+
+    # Crear máscara de borde: fila 0, fila H-1, col 0, col W-1
+    border_mask = np.zeros((h, w), dtype=bool)
+    border_mask[0, :] = True
+    border_mask[h - 1, :] = True
+    border_mask[:, 0] = True
+    border_mask[:, w - 1] = True
+
+    # Identificar qué labels tocan el borde
+    border_labels = set(np.unique(labels[border_mask]))
+    border_labels.discard(0)  # Ignorar fondo
+
+    if len(border_labels) == 0:
+        return mask  # Ningún componente toca bordes
+
+    interior_labels = set(range(1, n_labels)) - border_labels
+
+    if len(interior_labels) == 0:
+        print("⚠️  Todos los componentes tocan bordes — se conserva máscara completa")
+        return mask
+
+    # Reconstruir máscara solo con componentes interiores
+    clean = np.zeros_like(mask_bin)
+    for lbl in interior_labels:
+        clean[labels == lbl] = 1
+
+    removed_px = mask_bin.sum() - clean.sum()
+    print(f"   🧹 Bordes: {len(border_labels)} componente(s) eliminado(s), "
+          f"{removed_px} píxeles removidos")
+
+    return clean * 255
+
+
+def _keep_largest_components(mask: np.ndarray, min_ratio: float = 0.10) -> np.ndarray:
+    """
+    Filtra fragmentos desconectados de la máscara, conservando solo el
+    componente más grande y cualquier otro cuya área sea al menos
+    `min_ratio` del componente principal.  Descarta fragmentos pequeños
+    (ruido, artefactos) que no pertenecen al objeto.
+    """
+    mask_bin = (mask > 127).astype(np.uint8)
+
+    n_labels, labels = cv2.connectedComponents(mask_bin)
+    if n_labels <= 2:
+        return mask  # 0 o 1 componente, nada que filtrar
+
+    # Área de cada label (índice 0 = fondo)
+    areas = np.bincount(labels.ravel())
+    component_areas = areas[1:]  # solo componentes de primer plano
+
+    max_area = component_areas.max()
+    threshold = max_area * min_ratio
+
+    # Labels a conservar (label = índice + 1 porque label 0 es fondo)
+    keep_labels = {i + 1 for i, area in enumerate(component_areas)
+                   if area >= threshold}
+
+    if len(keep_labels) == n_labels - 1:
+        return mask  # Todos los componentes son suficientemente grandes
+
+    # Reconstruir máscara limpia
+    clean = np.zeros_like(mask_bin)
+    for lbl in keep_labels:
+        clean[labels == lbl] = 1
+
+    removed_count = (n_labels - 1) - len(keep_labels)
+    removed_px = mask_bin.sum() - clean.sum()
+    print(f"   🧩 Fragmentos: {removed_count} componente(s) pequeño(s) eliminado(s), "
+          f"{removed_px} píxeles descartados (umbral={threshold:.0f}px, "
+          f"{min_ratio * 100:.0f}% del principal)")
+
+    return clean * 255
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -387,6 +733,15 @@ def segment_with_fastsam(
 
     # Binarizar por seguridad (INTER_NEAREST debería mantener, pero aseguramos)
     mask_binary = (mask_original > 127).astype(np.uint8) * 255
+
+    # ── 3a. Clip estricto al bbox del usuario ────────────────────────────
+    mask_binary = _clip_mask_to_bbox(mask_binary, bbox)
+
+    # ── 3b. Eliminar componentes conexos que tocan bordes ────────────────
+    mask_binary = _remove_border_components(mask_binary)
+
+    # ── 3c. Filtrar fragmentos: conservar solo componentes grandes ───────
+    mask_binary = _keep_largest_components(mask_binary)
 
     # ── 4. Componer RGBA ─────────────────────────────────────────────────
     mask_pil = Image.fromarray(mask_binary, mode="L")
