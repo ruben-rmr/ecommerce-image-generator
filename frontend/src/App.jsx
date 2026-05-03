@@ -1,23 +1,41 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import './App.css'
 
 const API_URL = 'http://localhost:8000'
 
 export default function App() {
   const [imageFile, setImageFile]     = useState(null)
-  const [imageObj, setImageObj]       = useState(null)   // Image() para dimensiones naturales
-  const [bbox, setBbox]               = useState(null)   // { x1, y1, x2, y2 } relativas 0-1 (finalizado)
-  const [drawing, setDrawing]         = useState(null)   // { x1, y1, x2, y2 } mientras arrastra
-  const [result, setResult]           = useState(null)   // blob URL del PNG resultante
+  const [imageObj, setImageObj]       = useState(null)
+  const [bbox, setBbox]               = useState(null)
+  const [drawing, setDrawing]         = useState(null)
+  const [segResult, setSegResult]     = useState(null)   // blob URL del PNG segmentado
+  const [segBlob, setSegBlob]         = useState(null)    // blob raw para enviar a /generate
+  const [genResult, setGenResult]     = useState(null)    // blob URL de la imagen generada
   const [loading, setLoading]         = useState(false)
+  const [generating, setGenerating]   = useState(false)
   const [error, setError]             = useState(null)
   const [fileDragging, setFileDragging] = useState(false)
+
+  // Prompts predefinidos
+  const [prompts, setPrompts]         = useState({})
+  const [selectedPrompt, setSelectedPrompt] = useState('estudio_blanco')
 
   const imgRef    = useRef(null)
   const fileInput = useRef(null)
 
-  // ── Utilidad: obtener área real pintada de la imagen dentro del <img> ──────
-  // Con object-fit:contain, la imagen puede tener barras laterales/superiores.
+  // Cargar prompts disponibles al montar
+  useEffect(() => {
+    fetch(`${API_URL}/prompts/`)
+      .then(r => r.json())
+      .then(data => {
+        setPrompts(data)
+        const keys = Object.keys(data)
+        if (keys.length > 0) setSelectedPrompt(keys[0])
+      })
+      .catch(() => {})
+  }, [])
+
+  // ── Utilidad: obtener área real pintada de la imagen dentro del <img> ──
   const getImageBounds = useCallback(() => {
     if (!imgRef.current || !imageObj) return null
     const rect      = imgRef.current.getBoundingClientRect()
@@ -39,7 +57,6 @@ export default function App() {
     return { left: imgLeft, top: imgTop, width: imgW, height: imgH }
   }, [imageObj])
 
-  // Convertir coordenadas de pantalla a relativas 0-1 de la imagen
   const screenToRel = useCallback((clientX, clientY) => {
     const b = getImageBounds()
     if (!b) return null
@@ -48,13 +65,15 @@ export default function App() {
     return { rx, ry }
   }, [getImageBounds])
 
-  // ── Carga de imagen ───────────────────────────────────────────────────────
+  // ── Carga de imagen ──────────────────────────────────────────────────
   const loadFile = useCallback((file) => {
     if (!file || !file.type.startsWith('image/')) return
     setImageFile(file)
     setBbox(null)
     setDrawing(null)
-    setResult(null)
+    setSegResult(null)
+    setSegBlob(null)
+    setGenResult(null)
     setError(null)
 
     const url = URL.createObjectURL(file)
@@ -70,7 +89,7 @@ export default function App() {
     loadFile(e.dataTransfer.files[0])
   }
 
-  // ── Dibujo del bounding box con click + drag ──────────────────────────────
+  // ── Dibujo del bounding box ──────────────────────────────────────────
   const onMouseDown = (e) => {
     if (!imageObj) return
     e.preventDefault()
@@ -78,7 +97,9 @@ export default function App() {
     if (!rel) return
     setDrawing({ x1: rel.rx, y1: rel.ry, x2: rel.rx, y2: rel.ry })
     setBbox(null)
-    setResult(null)
+    setSegResult(null)
+    setSegBlob(null)
+    setGenResult(null)
     setError(null)
   }
 
@@ -101,20 +122,17 @@ export default function App() {
       y2: Math.max(drawing.y1, rel.ry),
     }
 
-    // Descartar cajas demasiado pequeñas (clics accidentales)
     if ((final.x2 - final.x1) > 0.01 && (final.y2 - final.y1) > 0.01) {
       setBbox(final)
     }
     setDrawing(null)
   }
 
-  // ── Calcular estilo CSS del rectángulo sobre la imagen ────────────────────
   const getRectStyle = (box) => {
     if (!box || !imgRef.current || !imageObj) return null
     const bounds = getImageBounds()
     if (!bounds) return null
 
-    // Coordenadas relativas al viewport → relativas al image-wrapper (position:relative)
     const wrapperRect = imgRef.current.parentElement.getBoundingClientRect()
 
     const left   = (bounds.left - wrapperRect.left) + Math.min(box.x1, box.x2) * bounds.width
@@ -125,12 +143,14 @@ export default function App() {
     return { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` }
   }
 
-  // ── Enviar al backend (con bbox manual) ──────────────────────────────────
+  // ── Segmentar (manual con bbox) ──────────────────────────────────────
   const handleSegment = async () => {
     if (!imageFile || !bbox) return
     setLoading(true)
     setError(null)
-    setResult(null)
+    setSegResult(null)
+    setSegBlob(null)
+    setGenResult(null)
 
     try {
       const fd = new FormData()
@@ -145,7 +165,8 @@ export default function App() {
       }
 
       const blob = await res.blob()
-      setResult(URL.createObjectURL(blob))
+      setSegBlob(blob)
+      setSegResult(URL.createObjectURL(blob))
     } catch (err) {
       setError(err.message || 'Error desconocido')
     } finally {
@@ -153,12 +174,14 @@ export default function App() {
     }
   }
 
-  // ── Segmentación automática (Canny → bbox → FastSAM) ───────────────────
+  // ── Segmentación automática ──────────────────────────────────────────
   const handleAutoSegment = async () => {
     if (!imageFile) return
     setLoading(true)
     setError(null)
-    setResult(null)
+    setSegResult(null)
+    setSegBlob(null)
+    setGenResult(null)
 
     try {
       const fd = new FormData()
@@ -172,7 +195,8 @@ export default function App() {
       }
 
       const blob = await res.blob()
-      setResult(URL.createObjectURL(blob))
+      setSegBlob(blob)
+      setSegResult(URL.createObjectURL(blob))
     } catch (err) {
       setError(err.message || 'Error desconocido')
     } finally {
@@ -180,19 +204,57 @@ export default function App() {
     }
   }
 
-  const canSegment = imageFile && imageObj && bbox && !loading
-  const canAutoSegment = imageFile && imageObj && !loading
-  const activeBox  = drawing || bbox    // caja a dibujar (arrastrando o confirmada)
+  // ── Generar fondo con Photoroom ──────────────────────────────────────
+  const handleGenerate = async () => {
+    if (!segBlob) return
+    setGenerating(true)
+    setError(null)
+
+    try {
+      const fd = new FormData()
+      fd.append('file', segBlob, 'segmentado.png')
+      fd.append('prompt_key', selectedPrompt)
+
+      const res = await fetch(`${API_URL}/generate/`, { method: 'POST', body: fd })
+
+      if (!res.ok) {
+        const detail = await res.json().then(d => d.detail).catch(() => res.statusText)
+        throw new Error(detail)
+      }
+
+      const blob = await res.blob()
+      setGenResult(URL.createObjectURL(blob))
+    } catch (err) {
+      setError(err.message || 'Error desconocido')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const canSegment     = imageFile && imageObj && bbox && !loading && !generating
+  const canAutoSegment = imageFile && imageObj && !loading && !generating
+  const canGenerate    = segBlob && !loading && !generating
+  const activeBox      = drawing || bbox
+
+  // Qué mostrar en el panel derecho
+  const rightImage = genResult || segResult
+  const rightTitle = genResult ? 'Imagen generada' : 'Segmentación'
+  const rightAlt   = genResult ? 'Imagen generada' : 'Segmentación'
+  const isProcessing = loading || generating
+
+  const PROMPT_LABELS = {
+    estudio_blanco: 'Estudio blanco profesional',
+  }
 
   return (
     <div className="app">
       <header className="header">
-        <h1>FastSAM · Segmentación interactiva</h1>
-        <p>Sube una imagen y segmenta automáticamente, o dibuja un recuadro manual.</p>
+        <h1>FastSAM · Segmentación y generación de fondos</h1>
+        <p>Sube una imagen, segmenta el objeto y genera un fondo profesional con IA.</p>
       </header>
 
       <main className="main">
-        {/* ── Panel izquierdo: input ────────────────────────────────────── */}
+        {/* ── Panel izquierdo: imagen original ─────────────────────────── */}
         <section className="panel">
           <div
             className={`drop-zone ${fileDragging ? 'dragging' : ''} ${imageObj ? 'has-image' : ''}`}
@@ -244,47 +306,79 @@ export default function App() {
 
           {imageObj && (
             <div className="actions">
-              <button className="btn-secondary" onClick={() => { setImageObj(null); setImageFile(null); setBbox(null); setDrawing(null); setResult(null); setError(null) }}>
+              <button className="btn-secondary" onClick={() => {
+                setImageObj(null); setImageFile(null); setBbox(null); setDrawing(null)
+                setSegResult(null); setSegBlob(null); setGenResult(null); setError(null)
+              }}>
                 Nueva imagen
               </button>
               <button className="btn-primary" onClick={handleAutoSegment} disabled={!canAutoSegment}>
-                {loading && !bbox ? <span className="spinner" /> : '🔍 Auto Segmentar'}
+                {loading && !bbox ? <span className="spinner" /> : 'Auto Segmentar'}
               </button>
               <button className="btn-primary" onClick={handleSegment} disabled={!canSegment}>
-                {loading && bbox ? <span className="spinner" /> : '✂️ Segmentar'}
+                {loading && bbox ? <span className="spinner" /> : 'Segmentar'}
               </button>
             </div>
           )}
 
-          {!bbox && !drawing && imageObj && !loading && !result && (
-            <p className="hint">🔍 Pulsa <strong>Auto Segmentar</strong> o dibuja un recuadro manualmente sobre el objeto.</p>
-          )}
-          {bbox && !result && !loading && (
-            <p className="hint">✅ Recuadro listo — pulsa <strong>Segmentar</strong>. Puedes redibujar o usar <strong>Auto Segmentar</strong>.</p>
-          )}
-          {error && <p className="error">⚠️ {error}</p>}
-        </section>
-
-        {/* ── Panel derecho: resultado ──────────────────────────────────── */}
-        <section className={`panel result-panel ${result ? 'visible' : ''}`}>
-          {loading && (
-            <div className="loading-state">
-              <span className="spinner large" />
-              <p>Procesando…</p>
+          {/* Selector de prompt + botón generar */}
+          {segResult && !generating && (
+            <div className="generate-section">
+              <label className="prompt-label" htmlFor="prompt-select">Fondo:</label>
+              <select
+                id="prompt-select"
+                className="prompt-select"
+                value={selectedPrompt}
+                onChange={(e) => setSelectedPrompt(e.target.value)}
+              >
+                {Object.keys(prompts).map(key => (
+                  <option key={key} value={key}>
+                    {PROMPT_LABELS[key] || key}
+                  </option>
+                ))}
+              </select>
+              <button className="btn-generate" onClick={handleGenerate} disabled={!canGenerate}>
+                Generar fondo
+              </button>
             </div>
           )}
-          {result && !loading && (
+
+          {!bbox && !drawing && imageObj && !loading && !segResult && (
+            <p className="hint">Pulsa <strong>Auto Segmentar</strong> o dibuja un recuadro manualmente sobre el objeto.</p>
+          )}
+          {bbox && !segResult && !loading && (
+            <p className="hint">Recuadro listo — pulsa <strong>Segmentar</strong>. Puedes redibujar o usar <strong>Auto Segmentar</strong>.</p>
+          )}
+          {segResult && !genResult && !generating && (
+            <p className="hint">Segmentación lista. Selecciona un fondo y pulsa <strong>Generar fondo</strong>.</p>
+          )}
+          {error && <p className="error">{error}</p>}
+        </section>
+
+        {/* ── Panel derecho: resultado ─────────────────────────────────── */}
+        <section className={`panel result-panel ${rightImage ? 'visible' : ''}`}>
+          {isProcessing && (
+            <div className="loading-state">
+              <span className="spinner large" />
+              <p>{generating ? 'Generando fondo…' : 'Segmentando…'}</p>
+            </div>
+          )}
+          {rightImage && !isProcessing && (
             <>
-              <h2 className="result-title">Resultado</h2>
+              <h2 className="result-title">{rightTitle}</h2>
               <div className="result-img-wrapper">
-                <img src={result} alt="Segmentación" className="result-img" />
+                <img src={rightImage} alt={rightAlt} className="result-img" />
               </div>
-              <a className="btn-download" href={result} download="segmentado.png">
-                ⬇️ Descargar PNG
+              <a
+                className="btn-download"
+                href={rightImage}
+                download={genResult ? 'generado.png' : 'segmentado.png'}
+              >
+                Descargar PNG
               </a>
             </>
           )}
-          {!result && !loading && (
+          {!rightImage && !isProcessing && (
             <div className="result-placeholder">
               <span>El resultado aparecerá aquí</span>
             </div>

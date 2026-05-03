@@ -10,6 +10,7 @@ import io
 
 from segmentation import segment_with_fastsam
 from utils import detectar_bbox_canny
+from generation import generate_background_via_api
 
 
 @asynccontextmanager
@@ -32,9 +33,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+PRESET_PROMPTS = {
+    "estudio_blanco": (
+        "Professional product photography on a pure infinite white background, "
+        "studio lighting with soft key light and fill light, "
+        "clean and minimalist e-commerce style, high-end commercial product shot"
+    ),
+    "estudio_blanco_2": (
+        "Pure solid white background (#FFFFFF), no gradients, no textures, "
+        "no reflections on the floor, no other objects, no text, no watermarks, "
+        "professional e-commerce product photography, front-facing view, "
+        "soft even studio lighting with no harsh highlights, "
+        "product centered in frame, clean minimalist commercial style"
+    ),
+}
+
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "Backend TFG con FastSAM local funcionando"}
+
+@app.get("/prompts/")
+def list_prompts():
+    """Devuelve los prompts predefinidos disponibles."""
+    return {key: value for key, value in PRESET_PROMPTS.items()}
 
 
 def _read_image(contents: bytes) -> Image.Image:
@@ -129,5 +150,44 @@ async def segment_image_auto(
 
     except Exception as e:
         print(f"❌ Error en segmentación auto: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==========================================================
+# GENERACIÓN DE FONDO CON PHOTOROOM API
+# ==========================================================
+@app.post("/generate/")
+async def generate_image(
+    file: UploadFile = File(...),
+    prompt_key: str = Form("estudio_blanco"),
+):
+    """
+    Recibe la imagen segmentada (PNG con fondo transparente) y un prompt_key
+    que referencia un prompt predefinido. Envía a Photoroom API y devuelve
+    la imagen generada.
+    """
+    try:
+        if prompt_key not in PRESET_PROMPTS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Prompt '{prompt_key}' no encontrado. Disponibles: {list(PRESET_PROMPTS.keys())}",
+            )
+
+        prompt = PRESET_PROMPTS[prompt_key]
+        image_bytes = await file.read()
+
+        print(f"🎨 Generando fondo con prompt '{prompt_key}': {prompt[:60]}...")
+
+        result_bytes = await asyncio.to_thread(
+            generate_background_via_api, image_bytes, prompt
+        )
+
+        return Response(content=result_bytes, media_type="image/png")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error en generación: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

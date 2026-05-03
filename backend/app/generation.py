@@ -1,6 +1,6 @@
 import requests
 
-PHOTOROOM_API_KEY = "sandbox_sk_pr_default_5f041be8654a918c51a598aaa85efb66f9afdd87"
+PHOTOROOM_API_KEY = "sk_pr_default_5f041be8654a918c51a598aaa85efb66f9afdd87"
 PHOTOROOM_URL = "https://image-api.photoroom.com/v2/edit"
 
 def generate_background_via_api(image_bytes: bytes, prompt: str) -> bytes:
@@ -10,12 +10,13 @@ def generate_background_via_api(image_bytes: bytes, prompt: str) -> bytes:
     headers = {
         "x-api-key": PHOTOROOM_API_KEY
     }
-    
+
     data = {
         "background.prompt": prompt,
-        "padding": "0.1", # Margen para que el objeto respire
+        "padding": "0.1",
+        "shadow.mode": "ai.soft",
     }
-    
+
     files = {
         "imageFile": ("objeto_limpio.png", image_bytes, "image/png")
     }
