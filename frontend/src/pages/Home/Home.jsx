@@ -8,10 +8,10 @@ const BACKGROUND_IMAGE_URL = ''   // p.ej. '/bg.jpg'
 const HERO_IMAGE_URL = ''   // p.ej. '/dress.png'
 
 // ── Textos editables ─────────────────────────────────────────────────
-const BRAND_LOGO = 'THREAD Lab'
-const BRAND_TITLE = 'THREADLAB'
-const BRAND_TAGLINE = 'FROM SKETCH TO STUDIO-READY'
-const HERO_LEAD = ['GLOBAL HUB', 'FOR FASHION', 'MANUFACTURING', 'IN 3D']
+const BRAND_LOGO = 'Product Studio'
+const BRAND_TITLE = 'ProdStudio'
+const BRAND_TAGLINE = 'DE FOTOGRAFÍA A IMAGEN PROFESIONAL'
+const HERO_LEAD = ['PROFESIONALIZA', 'UNA IMAGEN', 'FÁCILMENTE', 'EN SEGUNDOS']
 const COORD_LEFT = '37.3881° N'
 const COORD_RIGHT = '-5.9953° W'
 
@@ -87,6 +87,7 @@ export default function Home() {
                 </li>
                 <li className="menu-item" onClick={() => go('/galeria')}>Galería de estilos</li>
                 <li className="menu-item" onClick={() => go('/mision')}>Misión y visión</li>
+                <li className="menu-item" onClick={() => go('/como-funciona')}>¿Cómo funciona?</li>
                 <li className="menu-item" onClick={() => go('/contacto')}>Contacto</li>
               </ul>
             </nav>
