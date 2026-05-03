@@ -6,6 +6,8 @@ __pycache__/
 
 # Archivos de debug
 _debug_masks/
+backend/app/debug_auto/*.jpg
+backend/app/debug_auto/*.png
 
 # Pesos de los modelos de segmentación
 models/
