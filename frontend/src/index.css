@@ -1,1 +1,10 @@
 /* index.css — base reset only, styles live in App.css */
+
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.page-enter {
+  animation: pageFadeIn 0.22s ease-out both;
+}

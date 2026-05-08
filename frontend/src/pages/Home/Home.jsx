@@ -4,11 +4,10 @@ import './Home.css'
 
 // ── Imágenes (rellena con tus rutas) ─────────────────────────────────
 // Coloca tus archivos en /frontend/public/ y referencia con "/archivo.jpg"
-const BACKGROUND_IMAGE_URL = ''   // p.ej. '/bg.jpg'
 const HERO_IMAGE_URL = ''   // p.ej. '/dress.png'
 
 // ── Textos editables ─────────────────────────────────────────────────
-const BRAND_LOGO = 'Product Studio'
+const BRAND_LOGO = 'Professional Product Studio'
 const BRAND_TITLE = 'ProdStudio'
 const BRAND_TAGLINE = 'DE FOTOGRAFÍA A IMAGEN PROFESIONAL'
 const HERO_LEAD = ['PROFESIONALIZA', 'UNA IMAGEN', 'FÁCILMENTE', 'EN SEGUNDOS']
@@ -39,16 +38,23 @@ export default function Home() {
     navigate(path)
   }
 
-  const bgStyle = {
-    backgroundImage: BACKGROUND_IMAGE_URL ? `url(${BACKGROUND_IMAGE_URL})` : 'none',
-  }
   const heroStyle = {
     backgroundImage: HERO_IMAGE_URL ? `url(${HERO_IMAGE_URL})` : 'none',
   }
 
   return (
-    <div className="home" style={bgStyle}>
+    <div className="home">
       <div className="home-grid-overlay" aria-hidden="true" />
+
+      <video
+        className="home-bg-video"
+        src="/video/video_loop.mp4"
+        autoPlay
+        loop
+        muted
+        playsInline
+        aria-hidden="true"
+      />
 
       <span className="corner corner-tl" aria-hidden="true" />
       <span className="corner corner-tr" aria-hidden="true" />
@@ -68,8 +74,7 @@ export default function Home() {
             MENU
           </button>
 
-          {menuOpen && (
-            <nav className="menu-panel">
+          <nav className={`menu-panel${menuOpen ? ' open' : ''}`}>
               <ul>
                 <li
                   className={`menu-item has-submenu ${submenuOpen ? 'sub-open' : ''}`}
@@ -91,7 +96,6 @@ export default function Home() {
                 <li className="menu-item" onClick={() => go('/contacto')}>Contacto</li>
               </ul>
             </nav>
-          )}
         </div>
 
         <div className="brand-logo">{BRAND_LOGO}</div>
