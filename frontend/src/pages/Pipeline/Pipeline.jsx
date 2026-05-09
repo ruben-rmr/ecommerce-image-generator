@@ -4,10 +4,10 @@ import './Pipeline.css'
 
 const API_URL = 'http://localhost:8000'
 
-const PROMPT_LABELS = {
-  estudio_blanco:   'Estudio blanco',
-  estudio_blanco_2: 'Blanco minimalista',
-}
+const STUDIO_STYLES = [
+  { key: 'white',     label: 'Blanco profesional', desc: 'Fondo blanco con vignette muy suave.' },
+  { key: 'soft_gray', label: 'Gris degradado',     desc: 'Gradiente vertical 250 → 230 + vignette.' },
+]
 
 // Imágenes que se muestran en el visor de instrucciones (rellena los archivos
 // en frontend/public/instructions/ cuando los tengas).
@@ -45,8 +45,13 @@ export default function Pipeline({ mode = 'segment' }) {
   const [error, setError]             = useState(null)
   const [fileDragging, setFileDragging] = useState(false)
 
-  const [prompts, setPrompts]         = useState({})
-  const [selectedPrompt, setSelectedPrompt] = useState(null)
+  // MODO de composición ('studio' = Estudio profesional, 'scene' = Escena comercial).
+  const [composeMode, setComposeMode] = useState('studio')
+  const [studioStyle, setStudioStyle] = useState('white')
+  const [backgrounds, setBackgrounds] = useState({})
+  const [selectedBg, setSelectedBg]   = useState(null)
+  const [placement, setPlacement]     = useState({ x: 0.5, y: 0.78, scale: 0.4 })
+  const [harmonize, setHarmonize]     = useState(0.45)
 
   // Tabs principales del panel inferior
   const initialTab = mode === 'generate' ? 'generate' : 'segment'
@@ -63,17 +68,27 @@ export default function Pipeline({ mode = 'segment' }) {
   const imgRef    = useRef(null)
   const fileInput = useRef(null)
 
-  // Cargar prompts disponibles del backend
+  // Cargar catálogo de backgrounds locales del backend
   useEffect(() => {
-    fetch(`${API_URL}/prompts/`)
+    fetch(`${API_URL}/backgrounds/`)
       .then(r => r.json())
       .then(data => {
-        setPrompts(data)
-        const keys = Object.keys(data)
-        if (keys.length > 0) setSelectedPrompt(keys[0])
+        setBackgrounds(data || {})
+        const firstCat = Object.keys(data || {})[0]
+        const firstBg  = firstCat && data[firstCat]?.[0]
+        if (firstBg) setSelectedBg(firstBg.id)
       })
       .catch(() => {})
   }, [])
+
+  // Adaptar la posición por defecto según el modo activo
+  useEffect(() => {
+    if (composeMode === 'studio') {
+      setPlacement(p => ({ ...p, x: 0.5, y: 0.78, scale: p.scale || 0.62 }))
+    } else {
+      setPlacement(p => ({ ...p, x: 0.5, y: 0.72, scale: p.scale || 0.40 }))
+    }
+  }, [composeMode])
 
   // Cierra el visor de instrucciones con la tecla ESC
   useEffect(() => {
@@ -272,26 +287,52 @@ export default function Pipeline({ mode = 'segment' }) {
     }
   }
 
-  const handleGenerate = async () => {
-    if (!segBlob || !selectedPrompt) return
-    setGenerating(true); setError(null); setGenResult(null)
+  const handleCompose = useCallback(async () => {
+    if (!segBlob) return
+    if (composeMode === 'scene' && !selectedBg) return
+    setGenerating(true); setError(null)
     try {
       const fd = new FormData()
       fd.append('file', segBlob, 'segmentado.png')
-      fd.append('prompt_key', selectedPrompt)
-      const res = await fetch(`${API_URL}/generate/`, { method: 'POST', body: fd })
+      fd.append('position', JSON.stringify([placement.x, placement.y]))
+      fd.append('scale', String(placement.scale))
+
+      let url
+      if (composeMode === 'studio') {
+        fd.append('style', studioStyle)
+        url = `${API_URL}/compose/studio/`
+      } else {
+        fd.append('background_id', selectedBg)
+        fd.append('harmonize_strength', String(harmonize))
+        url = `${API_URL}/compose/scene/`
+      }
+
+      const res = await fetch(url, { method: 'POST', body: fd })
       if (!res.ok) {
         const detail = await res.json().then(d => d.detail).catch(() => res.statusText)
         throw new Error(detail)
       }
       const blob = await res.blob()
-      setGenResult(URL.createObjectURL(blob))
+      setGenResult(prev => {
+        if (prev) URL.revokeObjectURL(prev)
+        return URL.createObjectURL(blob)
+      })
     } catch (err) {
       setError(err.message || 'Error desconocido')
     } finally {
       setGenerating(false)
     }
-  }
+  }, [segBlob, composeMode, studioStyle, selectedBg, harmonize, placement])
+
+  // Re-componer automáticamente al cambiar parámetros (con debounce) si ya
+  // existe un resultado previo (el usuario está afinando el ajuste).
+  useEffect(() => {
+    if (!genResult || !segBlob) return
+    if (activeTab !== 'generate') return
+    const t = setTimeout(() => { handleCompose() }, 250)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composeMode, studioStyle, selectedBg, harmonize, placement.x, placement.y, placement.scale])
 
   // ── Acción del botón principal de la esquina inferior derecha ──
   const primaryAction = useMemo(() => {
@@ -309,12 +350,13 @@ export default function Pipeline({ mode = 'segment' }) {
 
     if (activeTab === 'generate') {
       if (!generateUnlocked) return { label: 'SEGMENTA PRIMERO', onClick: null, disabled: true }
-      if (!selectedPrompt)   return { label: 'ELIGE UN ESTILO', onClick: null, disabled: true }
-      return { label: 'GENERAR  »', onClick: handleGenerate, disabled: false }
+      if (composeMode === 'scene' && !selectedBg) return { label: 'ELIGE UN FONDO', onClick: null, disabled: true }
+      const label = composeMode === 'studio' ? 'COMPONER ESTUDIO  »' : 'COMPONER ESCENA  »'
+      return { label, onClick: handleCompose, disabled: false }
     }
 
     return { label: '—', onClick: null, disabled: true }
-  }, [activeTab, segMode, imageObj, bbox, isProcessing, generateUnlocked, selectedPrompt])
+  }, [activeTab, segMode, imageObj, bbox, isProcessing, generateUnlocked, composeMode, selectedBg, handleCompose])
 
   // ── Tabs disponibles según modo ──
   const showSegmentTab  = mode !== 'generate'
@@ -516,21 +558,65 @@ export default function Pipeline({ mode = 'segment' }) {
             </div>
           )}
 
-          {activeTab === 'generate' && (
-            <div className="opt-prompts">
-              {Object.keys(prompts).length === 0 && (
-                <span className="opt-info">Cargando estilos…</span>
-              )}
-              {Object.keys(prompts).map(key => (
+          {activeTab === 'generate' && composeMode === 'studio' && (
+            <div className="opt-styles">
+              {STUDIO_STYLES.map(s => (
                 <button
-                  key={key}
-                  className={`prompt-chip ${selectedPrompt === key ? 'selected' : ''}`}
-                  onClick={() => setSelectedPrompt(key)}
+                  key={s.key}
+                  className={`style-card ${studioStyle === s.key ? 'selected' : ''}`}
+                  onClick={() => setStudioStyle(s.key)}
                   disabled={!generateUnlocked}
+                  title={s.desc}
                 >
-                  {PROMPT_LABELS[key] || key}
+                  <div className={`style-preview style-${s.key}`} />
+                  <span className="style-label">{s.label}</span>
                 </button>
               ))}
+              <ComposeControls
+                placement={placement}
+                onPlacement={setPlacement}
+                showHarmonize={false}
+              />
+            </div>
+          )}
+
+          {activeTab === 'generate' && composeMode === 'scene' && (
+            <div className="opt-scene">
+              {Object.keys(backgrounds).length === 0 ? (
+                <span className="opt-info">
+                  No hay backgrounds en <code>backend/app/backgrounds/</code>. Añade imágenes y reinicia el servidor (o POST <code>/backgrounds/rescan/</code>).
+                </span>
+              ) : (
+                <div className="bg-categories">
+                  {Object.entries(backgrounds).map(([cat, items]) => (
+                    <div key={cat} className="bg-category">
+                      <div className="bg-category-title">{cat.toUpperCase()}</div>
+                      <div className="bg-grid">
+                        {items.map(bg => (
+                          <button
+                            key={bg.id}
+                            className={`bg-thumb ${selectedBg === bg.id ? 'selected' : ''}`}
+                            onClick={() => setSelectedBg(bg.id)}
+                            disabled={!generateUnlocked}
+                            title={bg.label}
+                          >
+                            <img src={`${API_URL}${bg.thumb_url}`} alt={bg.label} />
+                            {bg.reflective && <span className="bg-badge">✨</span>}
+                            <span className="bg-thumb-label">{bg.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <ComposeControls
+                placement={placement}
+                onPlacement={setPlacement}
+                showHarmonize={true}
+                harmonize={harmonize}
+                onHarmonize={setHarmonize}
+              />
             </div>
           )}
         </div>
@@ -550,7 +636,18 @@ export default function Pipeline({ mode = 'segment' }) {
             </>
           )}
           {activeTab === 'generate' && (
-            <span className="subtab-info">ESTILOS DISPONIBLES</span>
+            <>
+              <button
+                className={`subtab ${composeMode === 'studio' ? 'active' : ''}`}
+                onClick={() => setComposeMode('studio')}
+                disabled={!generateUnlocked}
+              >ESTUDIO PROFESIONAL</button>
+              <button
+                className={`subtab ${composeMode === 'scene' ? 'active' : ''}`}
+                onClick={() => setComposeMode('scene')}
+                disabled={!generateUnlocked}
+              >ESCENA COMERCIAL</button>
+            </>
           )}
         </div>
 
@@ -657,6 +754,51 @@ function PropRow({ k, v, mono = false, accent = false }) {
       <span className={`prop-v ${mono ? 'mono' : ''} ${accent ? 'accent' : ''}`} title={typeof v === 'string' ? v : ''}>
         {v}
       </span>
+    </div>
+  )
+}
+
+function ComposeControls({ placement, onPlacement, showHarmonize, harmonize, onHarmonize }) {
+  return (
+    <div className="compose-controls">
+      <label className="ctrl">
+        <span>Escala objeto</span>
+        <input
+          type="range" min="0.10" max="1.00" step="0.01"
+          value={placement.scale}
+          onChange={(e) => onPlacement({ ...placement, scale: parseFloat(e.target.value) })}
+        />
+        <span className="ctrl-val">{Math.round(placement.scale * 100)}%</span>
+      </label>
+      <label className="ctrl">
+        <span>Posición X</span>
+        <input
+          type="range" min="0.00" max="1.00" step="0.01"
+          value={placement.x}
+          onChange={(e) => onPlacement({ ...placement, x: parseFloat(e.target.value) })}
+        />
+        <span className="ctrl-val">{Math.round(placement.x * 100)}%</span>
+      </label>
+      <label className="ctrl">
+        <span>Pies (Y)</span>
+        <input
+          type="range" min="0.20" max="0.98" step="0.01"
+          value={placement.y}
+          onChange={(e) => onPlacement({ ...placement, y: parseFloat(e.target.value) })}
+        />
+        <span className="ctrl-val">{Math.round(placement.y * 100)}%</span>
+      </label>
+      {showHarmonize && (
+        <label className="ctrl">
+          <span>Harmonización</span>
+          <input
+            type="range" min="0.00" max="1.00" step="0.05"
+            value={harmonize}
+            onChange={(e) => onHarmonize(parseFloat(e.target.value))}
+          />
+          <span className="ctrl-val">{Math.round(harmonize * 100)}%</span>
+        </label>
+      )}
     </div>
   )
 }

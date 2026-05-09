@@ -92,8 +92,8 @@ def _save_debug_images(img_rgb: np.ndarray, edges: np.ndarray, bbox: list[int]) 
 def pre_procesar_objeto_universal(pil_image_original):
     """
     Limpieza Elíptica + Micro-Feathering.
-    Garantiza un recorte perfecto sin halos antes de enviar a APIs externas.
-    Se usa en el flujo de generación de fondo (endpoint /generate/).
+    Helper original de limpieza de halos. La pipeline de composición usa una
+    versión equivalente en composition/edges.py (clean_alpha_edges).
     """
     if pil_image_original.mode != 'RGBA':
         pil_image_original = pil_image_original.convert('RGBA')
