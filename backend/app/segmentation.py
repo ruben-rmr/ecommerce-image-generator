@@ -2,8 +2,42 @@ import io
 import os
 import cv2
 import numpy as np
+from pathlib import Path
+from datetime import datetime
 from PIL import Image
 from ultralytics import FastSAM
+
+
+_DEBUG_SEG_DIR = Path(__file__).parent / "debug_segmentation"
+
+
+def _save_seg_debug(prefix: str, images: dict[str, np.ndarray]) -> str:
+    """
+    Guarda imágenes intermedias de la segmentación en debug_segmentation/.
+    Retorna el timestamp usado como prefijo para correlacionar archivos.
+    """
+    try:
+        _DEBUG_SEG_DIR.mkdir(exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]
+        for name, img in images.items():
+            if img is None:
+                continue
+            path = _DEBUG_SEG_DIR / f"{ts}_{prefix}_{name}.png"
+            arr = img
+            if arr.ndim == 2:
+                cv2.imwrite(str(path), arr)
+            elif arr.ndim == 3 and arr.shape[2] == 3:
+                cv2.imwrite(str(path), cv2.cvtColor(arr, cv2.COLOR_RGB2BGR))
+            elif arr.ndim == 3 and arr.shape[2] == 4:
+                bgra = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGRA)
+                cv2.imwrite(str(path), bgra)
+            else:
+                cv2.imwrite(str(path), arr)
+        print(f"💾 Debug seg: {ts}_{prefix}_*.png ({len(images)} archivos)")
+        return ts
+    except Exception as exc:
+        print(f"⚠️  No se pudo guardar debug seg: {exc}")
+        return ""
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Cargar modelo FastSAM local (una sola vez al importar el módulo)
@@ -206,6 +240,7 @@ def run_fastsam(
     conf: float = 0.25,
     iou: float = 0.9,
     debug: bool = False,
+    debug_imgs: dict | None = None,
 ) -> np.ndarray | None:
     """
     Ejecuta FastSAM sobre el canvas preprocesado y selecciona la mejor máscara.
@@ -247,6 +282,24 @@ def run_fastsam(
         print("⚠️  FastSAM no generó máscaras")
         return None
 
+    # ── Guardar todas las máscaras crudas devueltas por FastSAM ──────────
+    if debug_imgs is not None:
+        try:
+            raw_masks = results[0].masks.data.cpu().numpy()
+            print(f"💾 Guardando {raw_masks.shape[0]} máscaras crudas de FastSAM "
+                  f"(shape={raw_masks.shape})")
+            for i in range(raw_masks.shape[0]):
+                m = (raw_masks[i] > 0.5).astype(np.uint8) * 255
+                if m.shape[0] != canvas_size or m.shape[1] != canvas_size:
+                    m = cv2.resize(m, (canvas_size, canvas_size),
+                                   interpolation=cv2.INTER_NEAREST)
+                # superponer bbox para referencia
+                m_bgr = cv2.cvtColor(m, cv2.COLOR_GRAY2BGR)
+                cv2.rectangle(m_bgr, (cb[0], cb[1]), (cb[2], cb[3]), (0, 255, 0), 2)
+                debug_imgs[f"02_raw_mask_{i:02d}"] = cv2.cvtColor(m_bgr, cv2.COLOR_BGR2RGB)
+        except Exception as exc:
+            print(f"⚠️  No se pudieron guardar máscaras crudas: {exc}")
+
     # ── Filtrar máscaras individuales que tocan bordes de la imagen ──────
     _filter_border_masks(results, meta, canvas_size)
     if results[0].masks is None or results[0].masks.data.shape[0] == 0:
@@ -262,19 +315,106 @@ def run_fastsam(
     if debug:
         _debug_masks(results, cb, canvas_size)
 
-    # ── Intento 1: Box prompt (IoU, agnóstico a la forma) ─────────────────
+    # ── Intento 1 (preferente): Unión de todas las máscaras contenidas en
+    #    el bbox.  FastSAM suele devolver el objeto fragmentado en partes
+    #    (cabeza/torso/piernas/base separadas); seleccionar una sola con
+    #    box_prompt deja partes fuera.  La unión de las piezas que están
+    #    mayoritariamente dentro del bbox reconstruye el objeto completo.
+    mask = _try_union_strategy(results, cb, canvas_size)
+    if mask is not None:
+        return mask
+
+    # ── Intento 2: Box prompt nativo de FastSAM ──────────────────────────
+    mask = _try_native_box_prompt(canvas, results, cb, canvas_size)
+    if mask is not None:
+        return mask
+
+    # ── Intento 3: Box prompt manual (IoU) ───────────────────────────────
     mask = _try_box_prompt(canvas, results, cb, canvas_size)
     if mask is not None:
         return mask
 
-    # ── Intento 2: Point prompt (fallback para objetos centrados) ────────
+    # ── Intento 4: Point prompt (fallback para objetos centrados) ────────
     mask = _try_point_prompt(canvas, results, pt_x, pt_y, cb, canvas_size)
     if mask is not None:
         return mask
 
-    # ── Intento 3: Selección manual por score compuesto ──────────────────
+    # ── Intento 5: Selección manual por score compuesto ──────────────────
     print("⚠️  Prompts fallaron, selección manual por score")
     return _select_best_mask(results, cb, canvas_size, canvas)
+
+
+def _try_union_strategy(
+    results,
+    canvas_bbox: list[int],
+    canvas_size: int,
+    min_inside_ratio: float = 0.60,
+    max_canvas_coverage: float = 0.55,
+    min_bbox_coverage: float = 0.20,
+) -> np.ndarray | None:
+    """
+    Une todas las máscaras que están mayoritariamente dentro del bbox para
+    reconstruir un objeto que FastSAM ha devuelto fragmentado.
+
+    Filtros aplicados a cada máscara antes de unirla:
+      - Área no nula.
+      - Área < max_canvas_coverage del canvas total → descartar máscaras
+        de "escena/fondo" que abarcan la mayor parte de la imagen.
+      - >= min_inside_ratio del área de la máscara cae dentro del bbox →
+        descartar objetos que solapen marginalmente el bbox pero no son
+        parte del objeto objetivo.
+
+    El resultado se valida con _mask_covers_bbox para evitar devolver
+    máscaras que apenas cubren una esquina del bbox.
+    """
+    masks_data = results[0].masks.data.cpu().numpy()  # (N, mH, mW)
+    n_masks, mH, mW = masks_data.shape
+    canvas_total = mH * mW
+
+    x1, y1, x2, y2 = canvas_bbox
+    sx, sy = mW / canvas_size, mH / canvas_size
+    mx1, my1 = int(x1 * sx), int(y1 * sy)
+    mx2, my2 = int(x2 * sx), int(y2 * sy)
+    bbox_mask = np.zeros((mH, mW), dtype=bool)
+    bbox_mask[my1:my2, mx1:mx2] = True
+
+    union = np.zeros((mH, mW), dtype=bool)
+    used = []
+    for i in range(n_masks):
+        m = masks_data[i] > 0.5
+        mask_area = int(m.sum())
+        if mask_area == 0:
+            continue
+        if mask_area / canvas_total > max_canvas_coverage:
+            print(f"   ↪ union: mask[{i}] descartada — cubre "
+                  f"{100*mask_area/canvas_total:.1f}% del canvas (escena/fondo)")
+            continue
+        inside = int(np.logical_and(m, bbox_mask).sum())
+        inside_ratio = inside / mask_area
+        if inside_ratio < min_inside_ratio:
+            continue
+        union |= m
+        used.append((i, inside_ratio, mask_area))
+
+    if not used:
+        print("   ↪ union: ninguna máscara apta")
+        return None
+
+    print(f"   ✅ Union de {len(used)} máscara(s):")
+    for idx, ratio, area in used:
+        print(f"      mask[{idx}]: {area}px ({100*ratio:.1f}% dentro del bbox)")
+
+    mask_bin = (union.astype(np.uint8) * 255)
+    if mask_bin.shape[0] != canvas_size or mask_bin.shape[1] != canvas_size:
+        mask_bin = cv2.resize(mask_bin, (canvas_size, canvas_size),
+                              interpolation=cv2.INTER_NEAREST)
+
+    if not _mask_covers_bbox(mask_bin, canvas_bbox, min_coverage=min_bbox_coverage):
+        print("   ⚠️  union: cobertura del bbox insuficiente — fallback a otros prompts")
+        return None
+
+    print("✅ Máscara obtenida vía union_strategy")
+    return mask_bin
 
 
 def _try_point_prompt(canvas, results, pt_x, pt_y, canvas_bbox, canvas_size):
@@ -319,6 +459,36 @@ def _try_point_prompt(canvas, results, pt_x, pt_y, canvas_bbox, canvas_size):
             print("⚠️  point_prompt: máscara insuficiente (baja cobertura)")
     except Exception as e:
         print(f"⚠️  point_prompt falló: {e}")
+    return None
+
+
+def _try_native_box_prompt(canvas, results, canvas_bbox, canvas_size):
+    """Usa FastSAMPrompt.box_prompt (API nativa de ultralytics) para seleccionar la máscara."""
+    try:
+        from ultralytics.models.fastsam import FastSAMPrompt
+
+        prompt_process = FastSAMPrompt(canvas, results, device="cpu")
+        ann = prompt_process.box_prompt(bboxes=[canvas_bbox])
+
+        if ann is None or (hasattr(ann, "__len__") and len(ann) == 0):
+            print("⚠️  native_box_prompt: sin resultado")
+            return None
+
+        ann = np.array(ann)
+        mask_bin = ann[0] if ann.ndim == 3 else ann
+        mask_bin = (mask_bin > 0.5).astype(np.uint8) * 255
+
+        if mask_bin.shape[0] != canvas_size or mask_bin.shape[1] != canvas_size:
+            mask_bin = cv2.resize(mask_bin, (canvas_size, canvas_size),
+                                  interpolation=cv2.INTER_NEAREST)
+
+        if _mask_covers_bbox(mask_bin, canvas_bbox, min_coverage=0.15):
+            print("✅ Máscara obtenida vía native_box_prompt")
+            return mask_bin
+        else:
+            print("⚠️  native_box_prompt: máscara insuficiente (baja cobertura)")
+    except Exception as e:
+        print(f"⚠️  native_box_prompt falló: {e}")
     return None
 
 
@@ -718,8 +888,20 @@ def segment_with_fastsam(
     print(f"   Canvas: {meta['canvas_size']}×{meta['canvas_size']}, "
           f"scale={meta['scale']:.3f}, pad=({meta['pad_x']},{meta['pad_y']})")
 
+    # Dibujar bbox sobre original y sobre canvas para debug
+    orig_with_bbox = img_np.copy()
+    cv2.rectangle(orig_with_bbox, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), max(2, w // 500))
+    cb = _bbox_to_canvas(bbox, meta)
+    canvas_with_bbox = canvas.copy()
+    cv2.rectangle(canvas_with_bbox, (cb[0], cb[1]), (cb[2], cb[3]), (0, 255, 0), 2)
+
+    debug_imgs = {
+        "00_original_bbox": orig_with_bbox,
+        "01_canvas_bbox": canvas_with_bbox,
+    }
+
     # ── 2. Inferencia + selección de máscara ─────────────────────────────
-    mask_canvas = run_fastsam(canvas, meta, bbox, debug=debug)
+    mask_canvas = run_fastsam(canvas, meta, bbox, debug=debug, debug_imgs=debug_imgs)
 
     # Fallback: si no se obtuvo máscara, recorte rectangular
     if mask_canvas is None:
@@ -728,25 +910,37 @@ def segment_with_fastsam(
         x1, y1, x2, y2 = bbox
         mask_original[y1:y2, x1:x2] = 255
     else:
+        debug_imgs["10_mask_canvas_selected"] = mask_canvas
         # ── 3. Postprocesado ─────────────────────────────────────────────
         mask_original = postprocess_mask(mask_canvas, meta)
+        debug_imgs["11_mask_original_postproc"] = mask_original
 
     # Binarizar por seguridad (INTER_NEAREST debería mantener, pero aseguramos)
     mask_binary = (mask_original > 127).astype(np.uint8) * 255
 
     # ── 3a. Clip estricto al bbox del usuario ────────────────────────────
     mask_binary = _clip_mask_to_bbox(mask_binary, bbox)
+    debug_imgs["12_mask_after_clip_bbox"] = mask_binary
 
     # ── 3b. Eliminar componentes conexos que tocan bordes ────────────────
     mask_binary = _remove_border_components(mask_binary)
+    debug_imgs["13_mask_after_remove_border"] = mask_binary
 
     # ── 3c. Filtrar fragmentos: conservar solo componentes grandes ───────
     mask_binary = _keep_largest_components(mask_binary)
+    debug_imgs["14_mask_final"] = mask_binary
 
     # ── 4. Componer RGBA ─────────────────────────────────────────────────
     mask_pil = Image.fromarray(mask_binary, mode="L")
     result = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     result.paste(rgb, mask=mask_pil)
+
+    # Guardar overlay del resultado sobre fondo gris para inspección visual
+    overlay = np.full((h, w, 3), 64, dtype=np.uint8)
+    overlay[mask_binary > 0] = img_np[mask_binary > 0]
+    debug_imgs["15_result_overlay"] = overlay
+
+    _save_seg_debug("seg", debug_imgs)
 
     buf = io.BytesIO()
     result.save(buf, format="PNG")
