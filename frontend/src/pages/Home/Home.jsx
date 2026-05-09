@@ -18,7 +18,6 @@ const COORD_RIGHT = '-5.9953° W'
 export default function Home() {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [submenuOpen, setSubmenuOpen] = useState(false)
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -26,7 +25,6 @@ export default function Home() {
     const onClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setMenuOpen(false)
-        setSubmenuOpen(false)
       }
     }
     document.addEventListener('mousedown', onClickOutside)
@@ -35,7 +33,6 @@ export default function Home() {
 
   const go = (path) => {
     setMenuOpen(false)
-    setSubmenuOpen(false)
     navigate(path)
   }
 
@@ -59,7 +56,7 @@ export default function Home() {
         <div className="menu-wrapper" ref={menuRef}>
           <button
             className={`menu-btn ${menuOpen ? 'open' : ''}`}
-            onClick={() => { setMenuOpen(o => !o); setSubmenuOpen(false) }}
+            onClick={() => setMenuOpen(o => !o)}
             aria-expanded={menuOpen}
           >
             <span className="menu-icon" aria-hidden="true">
@@ -71,20 +68,7 @@ export default function Home() {
           {menuOpen && (
             <nav className="menu-panel">
               <ul>
-                <li
-                  className={`menu-item has-submenu ${submenuOpen ? 'sub-open' : ''}`}
-                  onMouseEnter={() => setSubmenuOpen(true)}
-                  onMouseLeave={() => setSubmenuOpen(false)}
-                >
-                  <span className="menu-item-label" onClick={() => go('/profesionalizar')}>
-                    Profesionalizar imagen
-                    <span className="chev" aria-hidden="true">›</span>
-                  </span>
-                  <ul className="submenu">
-                    <li onClick={() => go('/segmentar')}>Segmentar</li>
-                    <li onClick={() => go('/generar-fondo')}>Generar fondo</li>
-                  </ul>
-                </li>
+                <li className="menu-item" onClick={() => go('/profesionalizar')}>Profesionalizar imagen</li>
                 <li className="menu-item" onClick={() => go('/galeria')}>Galería de estilos</li>
                 <li className="menu-item" onClick={() => go('/mision')}>Misión y visión</li>
                 <li className="menu-item" onClick={() => go('/como-funciona')}>¿Cómo funciona?</li>

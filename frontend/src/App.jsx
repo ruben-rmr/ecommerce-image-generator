@@ -11,9 +11,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/profesionalizar" element={<Pipeline mode="full" />} />
-      <Route path="/segmentar"       element={<Pipeline mode="segment" />} />
-      <Route path="/generar-fondo"   element={<Pipeline mode="generate" />} />
+      <Route path="/profesionalizar" element={<Pipeline />} />
       <Route path="/galeria"   element={<Gallery />} />
       <Route path="/mision"    element={<Mission />} />
       <Route path="/como-funciona" element={<HowItWorks />} />

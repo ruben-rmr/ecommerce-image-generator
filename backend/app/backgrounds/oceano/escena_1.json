@@ -1,0 +1,10 @@
+{
+    "label": "Océano con salpicaduras",
+    "ground_y": 0.55,
+    "light_dir": [
+        0.5,
+        -0.5
+    ],
+    "reflective": true,
+    "reflective_type": "glossy"
+}
