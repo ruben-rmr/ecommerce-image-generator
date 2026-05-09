@@ -434,26 +434,27 @@ body {
   flex-direction: column;
   z-index: 5;
   overflow: hidden;
-  transition: max-height 0.25s ease;
-  max-height: 240px;
 }
-.pl-panel.collapsed { max-height: 80px; }
+
+.pl-panel-collapsible {
+  overflow: hidden;
+  max-height: 22rem;
+  transition: max-height 0.3s ease;
+}
+.pl-panel-collapsible.collapsed { max-height: 0; }
 
 .pl-panel-toggle {
-  position: absolute;
-  top: 10px;
-  right: 10px;
   width: 28px;
-  height: 24px;
+  height: 28px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--pl-card-bd);
   border-radius: 4px;
   color: var(--pl-text);
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   line-height: 1;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
-  z-index: 2;
+  flex-shrink: 0;
 }
 .pl-panel-toggle:hover { background: var(--pl-accent-bg); color: var(--pl-accent); }
 
@@ -464,13 +465,48 @@ body {
   display: flex;
   align-items: center;
 }
-.pl-panel.collapsed .pl-panel-options,
-.pl-panel.collapsed .pl-panel-subtabs { display: none; }
 
 .opt-info {
   font-size: 0.78rem;
   color: var(--pl-text-soft);
   letter-spacing: 0.04em;
+}
+
+.opt-seg-row {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.opt-seg-row .opt-info { flex: 1; min-width: 0; }
+
+.resize-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.resize-label {
+  font-size: 0.70rem;
+  letter-spacing: 0.07em;
+  color: var(--pl-text-mute);
+  white-space: nowrap;
+}
+.resize-select {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--pl-card-bd);
+  border-radius: 4px;
+  color: var(--pl-text);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  padding: 3px 6px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.resize-select:hover, .resize-select:focus {
+  border-color: var(--pl-accent);
 }
 
 /* === MODO ESTUDIO: tarjetas de estilo === */

@@ -96,10 +96,24 @@ def read_root():
 # ----------------------------------------------------------------------
 # SEGMENTACIÓN — sin cambios funcionales
 # ----------------------------------------------------------------------
+def _resize_for_segmentation(image: Image.Image, max_side: int | None) -> Image.Image:
+    """Redimensiona manteniendo aspect ratio si algún lado supera max_side."""
+    if max_side is None:
+        return image
+    w, h = image.size
+    if max(w, h) <= max_side:
+        return image
+    scale = max_side / max(w, h)
+    new_w, new_h = int(w * scale), int(h * scale)
+    print(f"🔲 Resize: {w}×{h} → {new_w}×{new_h} (max_side={max_side})")
+    return image.resize((new_w, new_h), Image.LANCZOS)
+
+
 @app.post("/segment_bbox/")
 async def segment_image_bbox(
     file: UploadFile = File(...),
     bbox: str = Form(...),
+    max_side: int | None = Form(None),
 ):
     """Segmentación con bounding box manual relativo (0-1)."""
     try:
@@ -114,6 +128,7 @@ async def segment_image_bbox(
 
         contents = await file.read()
         image = _read_image(contents)
+        image = _resize_for_segmentation(image, max_side)
         w, h = image.size
 
         px1 = max(0, min(int(rel_x1 * w), w - 1))
@@ -138,11 +153,15 @@ async def segment_image_bbox(
 
 
 @app.post("/segment_auto/")
-async def segment_image_auto(file: UploadFile = File(...)):
+async def segment_image_auto(
+    file: UploadFile = File(...),
+    max_side: int | None = Form(None),
+):
     """Segmentación automática (Canny → bbox → FastSAM)."""
     try:
         contents = await file.read()
         image = _read_image(contents)
+        image = _resize_for_segmentation(image, max_side)
         bbox = await asyncio.to_thread(detectar_bbox_canny, image)
         print(f"📦 Bbox automático (Canny): {bbox} sobre {image.size[0]}×{image.size[1]}")
         result_png = await asyncio.to_thread(segment_with_fastsam, image, bbox)

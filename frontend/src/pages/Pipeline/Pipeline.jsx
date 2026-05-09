@@ -29,7 +29,7 @@ function shortType(mime) {
 }
 
 // mode: 'full' | 'segment' | 'generate'
-export default function Pipeline({ mode = 'segment' }) {
+export default function Pipeline({ mode = 'full' }) {
   const navigate = useNavigate()
   const onBackHome = () => navigate('/')
 
@@ -52,6 +52,9 @@ export default function Pipeline({ mode = 'segment' }) {
   const [selectedBg, setSelectedBg]   = useState(null)
   const [placement, setPlacement]     = useState({ x: 0.5, y: 0.78, scale: 0.4 })
   const [harmonize, setHarmonize]     = useState(0.45)
+
+  // Resolución máxima antes de pasar al modelo (null = original)
+  const [resizeMaxSide, setResizeMaxSide] = useState(640)
 
   // Tabs principales del panel inferior
   const initialTab = mode === 'generate' ? 'generate' : 'segment'
@@ -248,6 +251,7 @@ export default function Pipeline({ mode = 'segment' }) {
       const fd = new FormData()
       fd.append('file', imageFile)
       fd.append('bbox', JSON.stringify([bbox.x1, bbox.y1, bbox.x2, bbox.y2]))
+      if (resizeMaxSide) fd.append('max_side', String(resizeMaxSide))
       const res = await fetch(`${API_URL}/segment_bbox/`, { method: 'POST', body: fd })
       if (!res.ok) {
         const detail = await res.json().then(d => d.detail).catch(() => res.statusText)
@@ -271,6 +275,7 @@ export default function Pipeline({ mode = 'segment' }) {
     try {
       const fd = new FormData()
       fd.append('file', imageFile)
+      if (resizeMaxSide) fd.append('max_side', String(resizeMaxSide))
       const res = await fetch(`${API_URL}/segment_auto/`, { method: 'POST', body: fd })
       if (!res.ok) {
         const detail = await res.json().then(d => d.detail).catch(() => res.statusText)
@@ -530,31 +535,42 @@ export default function Pipeline({ mode = 'segment' }) {
       />
 
       {/* Panel inferior */}
-      <section className={`pl-panel ${panelCollapsed ? 'collapsed' : ''}`}>
-        {/* Botón colapsar */}
-        <button
-          className="pl-panel-toggle"
-          onClick={() => setPanelCollapsed(c => !c)}
-          title={panelCollapsed ? 'Mostrar panel' : 'Ocultar panel'}
-        >
-          {panelCollapsed ? '˄' : '˅'}
-        </button>
-
+      <section className="pl-panel">
+        <div className={`pl-panel-collapsible ${panelCollapsed ? 'collapsed' : ''}`}>
         {/* Fila 1: sub-opciones del tab activo */}
         <div className="pl-panel-options">
-          {activeTab === 'segment' && segMode === 'auto' && (
-            <div className="opt-info">
-              Detecta automáticamente el objeto principal con FastSAM.
-            </div>
-          )}
-
-          {activeTab === 'segment' && segMode === 'manual' && (
-            <div className="opt-info">
-              {imageObj
-                ? (bbox
-                    ? 'Recuadro listo. Pulsa SEGMENTAR para procesar (o redibújalo).'
-                    : 'Dibuja un recuadro sobre el objeto en la imagen central.')
-                : 'Sube primero una imagen.'}
+          {activeTab === 'segment' && (
+            <div className="opt-seg-row">
+              {segMode === 'auto' && (
+                <span className="opt-info">
+                  Detecta automáticamente el objeto principal con FastSAM.
+                </span>
+              )}
+              {segMode === 'manual' && (
+                <span className="opt-info">
+                  {imageObj
+                    ? (bbox
+                        ? 'Recuadro listo. Pulsa SEGMENTAR para procesar (o redibújalo).'
+                        : 'Dibuja un recuadro sobre el objeto en la imagen central.')
+                    : 'Sube primero una imagen.'}
+                </span>
+              )}
+              <label className="resize-ctrl">
+                <span className="resize-label">RESOLUCIÓN</span>
+                <select
+                  className="resize-select"
+                  value={resizeMaxSide ?? ''}
+                  onChange={e => setResizeMaxSide(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Original</option>
+                  <option value="3840">4K (3840 px)</option>
+                  <option value="2560">2.5K (2560 px)</option>
+                  <option value="1920">Full HD (1920 px)</option>
+                  <option value="1280">HD (1280 px)</option>
+                  <option value="960">960 px</option>
+                  <option value="640">640 px</option>
+                </select>
+              </label>
             </div>
           )}
 
@@ -640,16 +656,15 @@ export default function Pipeline({ mode = 'segment' }) {
               <button
                 className={`subtab ${composeMode === 'studio' ? 'active' : ''}`}
                 onClick={() => setComposeMode('studio')}
-                disabled={!generateUnlocked}
               >ESTUDIO PROFESIONAL</button>
               <button
                 className={`subtab ${composeMode === 'scene' ? 'active' : ''}`}
                 onClick={() => setComposeMode('scene')}
-                disabled={!generateUnlocked}
               >ESCENA COMERCIAL</button>
             </>
           )}
         </div>
+        </div>{/* /pl-panel-collapsible */}
 
         {/* Fila 3: tabs principales + acción */}
         <div className="pl-panel-main">
@@ -665,25 +680,22 @@ export default function Pipeline({ mode = 'segment' }) {
             )}
             {showGenerateTab && (
               <button
-                className={`mtab ${activeTab === 'generate' ? 'active' : ''} ${!generateUnlocked ? 'locked' : ''}`}
-                onClick={() => generateUnlocked && setActiveTab('generate')}
-                disabled={!generateUnlocked}
-                title={!generateUnlocked ? 'Disponible tras segmentar' : undefined}
+                className={`mtab ${activeTab === 'generate' ? 'active' : ''}`}
+                onClick={() => setActiveTab('generate')}
               >
                 <span className="mtab-icon">✦</span>
                 <span>GENERAR FONDO</span>
               </button>
             )}
-            {/* Placeholders para futuras herramientas */}
-            <button className="mtab disabled" disabled>
-              <span className="mtab-icon">◐</span>
-              <span>RETOQUE</span>
-            </button>
-            <button className="mtab disabled" disabled>
-              <span className="mtab-icon">⬚</span>
-              <span>EXPORTAR</span>
-            </button>
           </div>
+
+          <button
+            className="pl-panel-toggle"
+            onClick={() => setPanelCollapsed(c => !c)}
+            title={panelCollapsed ? 'Expandir panel' : 'Colapsar panel'}
+          >
+            {panelCollapsed ? '▲' : '▼'}
+          </button>
 
           <button
             className="pl-action-btn"
