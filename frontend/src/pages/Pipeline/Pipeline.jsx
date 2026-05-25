@@ -5,9 +5,16 @@ import './Pipeline.css'
 const API_URL = 'http://localhost:8000'
 
 const STUDIO_STYLES = [
-  { key: 'white',     label: 'Blanco profesional', desc: 'Fondo blanco con vignette muy suave.' },
-  { key: 'soft_gray', label: 'Gris degradado',     desc: 'Gradiente vertical 250 → 230 + vignette.' },
+  { key: 'white', label: 'Blanco profesional', desc: 'Fondo blanco con vignette muy suave.' },
 ]
+
+const RESIZE_OPTIONS = [3840, 2560, 1920, 1280, 960, 640]
+
+function pickClosestResize(maxSide) {
+  return RESIZE_OPTIONS.reduce((best, opt) =>
+    Math.abs(opt - maxSide) < Math.abs(best - maxSide) ? opt : best
+  )
+}
 
 // Imágenes que se muestran en el visor de instrucciones (rellena los archivos
 // en frontend/public/instructions/ cuando los tengas).
@@ -177,7 +184,10 @@ export default function Pipeline({ mode = 'full' }) {
 
     const url = URL.createObjectURL(file)
     const img = new Image()
-    img.onload = () => setImageObj({ url, width: img.naturalWidth, height: img.naturalHeight })
+    img.onload = () => {
+      setImageObj({ url, width: img.naturalWidth, height: img.naturalHeight })
+      setResizeMaxSide(pickClosestResize(Math.max(img.naturalWidth, img.naturalHeight)))
+    }
     img.src = url
   }, [mode, resetAllState])
 
