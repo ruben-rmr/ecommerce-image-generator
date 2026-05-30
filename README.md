@@ -1,6 +1,6 @@
 # Ecommerce Image Generator
 
-Aplicación web para la **segmentación automática de productos** en imágenes de e-commerce y la **generación de fondos personalizados** mediante IA. El usuario sube una fotografía de producto, delimita el objeto con un bounding box interactivo y obtiene un recorte con fondo transparente listo para uso comercial.
+Aplicación web para la **segmentación automática de productos** en imágenes de e-commerce y la **composición de fondos personalizados** de forma totalmente local, sin dependencias de APIs externas de pago. El usuario sube una fotografía de producto, delimita el objeto con un bounding box interactivo (o usa la detección automática), y obtiene un recorte con fondo transparente listo para composición.
 
 ---
 
@@ -12,12 +12,11 @@ Aplicación web para la **segmentación automática de productos** en imágenes 
 4. [Backend](#backend)
    - [Endpoints de la API](#endpoints-de-la-api)
    - [Módulo de segmentación](#módulo-de-segmentación-segmentationpy)
-   - [Módulo de generación de fondo](#módulo-de-generación-de-fondo-generationpy)
-   - [Utilidades de preprocesamiento](#utilidades-de-preprocesamiento-utilspy)
+   - [Pipeline de composición local](#pipeline-de-composición-local-composition)
+   - [Utilidades](#utilidades-utilspy)
 5. [Frontend](#frontend)
 6. [Instalación y ejecución](#instalación-y-ejecución)
 7. [Requisitos del sistema](#requisitos-del-sistema)
-8. [APIs externas](#apis-externas)
 
 ---
 
@@ -31,13 +30,16 @@ Aplicación web para la **segmentación automática de productos** en imágenes 
 └─────────────────────────┘   fetch / CORS     └──────────┬───────────────────┘
                                                           │
                                                ┌──────────▼───────────────────┐
-                                               │     APIs externas            │
-                                               │  · Replicate (SAM2)          │
-                                               │  · Photoroom (generación)    │
+                                               │     Procesamiento local      │
+                                               │  · FastSAM (ultralytics)     │
+                                               │  · Composición procedural    │
+                                               │  · Catálogo de fondos local  │
                                                └──────────────────────────────┘
 ```
 
-El frontend envía la imagen y las coordenadas del bounding box al backend. El backend delega la segmentación al modelo **SAM2 (Segment Anything Model 2)** de Meta a través de la API de **Replicate**, compone el resultado RGBA y lo devuelve al cliente como PNG con fondo transparente.
+El frontend envía la imagen y las coordenadas del bounding box al backend. El backend ejecuta **FastSAM** localmente sobre la imagen para generar la máscara, compone el resultado RGBA y lo devuelve como PNG con fondo transparente. La composición de fondos también se realiza en local: fondos procedurales de estudio o imágenes locales con armonización de color.
+
+**No se usa ninguna API externa de terceros.** Todo el procesamiento ocurre en la máquina local.
 
 ---
 
@@ -47,15 +49,13 @@ El frontend envía la imagen y las coordenadas del bounding box al backend. El b
 
 | Tecnología | Versión / Detalle | Propósito |
 |---|---|---|
-| Python | 3.x | Lenguaje del servidor |
+| Python | 3.10+ | Lenguaje del servidor |
 | FastAPI | — | Framework HTTP asíncrono |
 | Uvicorn | — | Servidor ASGI |
-| Replicate SDK | — | Llamadas al modelo SAM2 en la nube |
+| ultralytics | — | Carga y ejecución de FastSAM local |
 | Pillow (PIL) | — | Manipulación de imágenes, composición RGBA |
-| OpenCV (`cv2`) | — | Operaciones morfológicas, inpainting, preprocesamiento |
-| NumPy | — | Manipulación de arrays/máscaras |
-| httpx | — | Cliente HTTP asíncrono para descarga de máscaras |
-| requests | — | Cliente HTTP para Photoroom API |
+| OpenCV (`cv2`) | — | Preprocesado, morfología, Canny, inpainting |
+| NumPy | — | Manipulación de arrays y máscaras |
 | python-dotenv | — | Carga de variables de entorno |
 
 ### Frontend
@@ -76,28 +76,41 @@ El frontend envía la imagen y las coordenadas del bounding box al backend. El b
 ecommerce-image-generator/
 ├── backend/
 │   └── app/
-│       ├── main.py              # Servidor FastAPI, endpoints y CORS
-│       ├── segmentation.py      # Segmentación con SAM2 vía Replicate API
-│       ├── generation.py        # Generación de fondos vía Photoroom API
-│       ├── utils.py             # Preprocesamiento de imagen (limpieza, feathering)
+│       ├── main.py                  # Servidor FastAPI, endpoints y CORS
+│       ├── segmentation.py          # Pipeline FastSAM local (preprocesado, inferencia, postprocesado)
+│       ├── utils.py                 # Detección automática de bbox (Canny) y limpieza de halos
+│       ├── composition/
+│       │   ├── __init__.py          # Exporta compose_studio y compose_scene
+│       │   ├── studio.py            # Composición sobre fondo procedural de estudio
+│       │   ├── scene.py             # Composición sobre fondo local con armonización
+│       │   ├── catalog.py           # Catálogo de fondos locales (scan + metadatos)
+│       │   ├── edges.py             # Limpieza de bordes alfa (clean_alpha_edges)
+│       │   ├── harmonization.py     # Transferencia de color LAB para armonizar escena
+│       │   ├── placement.py         # Posicionado y escalado automático del objeto
+│       │   ├── relighting.py        # Ajuste de iluminación global del objeto
+│       │   ├── reflections.py       # Generación de reflexiones en superficies
+│       │   ├── shadows.py           # Sombras de suelo (cast shadows)
+│       │   └── io_utils.py          # Lectura/escritura de imágenes PNG
 │       ├── models/
-│       │   └── FastSAM-s.pt     # Pesos del modelo FastSAM (variante small)
-│       └── _debug_masks/        # Máscaras de debug generadas durante inferencia
+│       │   └── FastSAM-s.pt         # Pesos del modelo FastSAM (variante small)
+│       ├── backgrounds/             # Fondos locales organizados por categoría
+│       ├── debug_segmentation/      # Imágenes de debug generadas por el pipeline de segmentación
+│       └── debug_auto/              # Imágenes de debug generadas por la detección Canny
 ├── frontend/
-│   ├── index.html               # Punto de entrada HTML
-│   ├── package.json             # Dependencias y scripts npm
-│   ├── vite.config.js           # Configuración de Vite
-│   ├── tailwind.config.js       # Configuración de Tailwind CSS
-│   ├── postcss.config.js        # Configuración de PostCSS
-│   ├── eslint.config.js         # Configuración de ESLint
+│   ├── index.html                   # Punto de entrada HTML
+│   ├── package.json                 # Dependencias y scripts npm
+│   ├── vite.config.js               # Configuración de Vite
+│   ├── tailwind.config.js           # Configuración de Tailwind CSS
+│   ├── postcss.config.js            # Configuración de PostCSS
+│   ├── eslint.config.js             # Configuración de ESLint
 │   └── src/
-│       ├── main.jsx             # Bootstrap de React (StrictMode + createRoot)
-│       ├── App.jsx              # Componente principal de la aplicación
-│       ├── App.css              # Estilos de la aplicación
-│       └── index.css            # Reset CSS base
-├── requirements.txt             # Dependencias Python
-├── .gitignore                   # Exclusiones de Git
-└── README.md                    # Este archivo
+│       ├── main.jsx                 # Bootstrap de React (StrictMode + createRoot)
+│       ├── App.jsx                  # Componente principal de la aplicación
+│       ├── App.css                  # Estilos de la aplicación
+│       └── index.css                # Reset CSS base
+├── requirements.txt                 # Dependencias Python
+├── .gitignore                       # Exclusiones de Git
+└── README.md                        # Este archivo
 ```
 
 ---
@@ -108,8 +121,15 @@ ecommerce-image-generator/
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `GET` | `/` | Health check — devuelve estado del servidor |
-| `POST` | `/segment_bbox/` | Segmentación de imagen con bounding box |
+| `GET` | `/` | Health check — devuelve estado y modos disponibles |
+| `POST` | `/segment_bbox/` | Segmentación con bounding box manual |
+| `POST` | `/segment_auto/` | Segmentación automática (Canny → bbox → FastSAM) |
+| `POST` | `/compose/studio/` | Composición sobre fondo procedural de estudio |
+| `POST` | `/compose/scene/` | Composición sobre fondo local con armonización |
+| `GET` | `/backgrounds/` | Lista el catálogo de fondos locales agrupados por categoría |
+| `POST` | `/backgrounds/rescan/` | Re-escanea la carpeta de fondos en caliente |
+| `GET` | `/backgrounds/full/{category}/{name}` | Sirve un fondo a resolución completa |
+| `GET` | `/backgrounds/thumb/{category}/{name}` | Sirve una miniatura del fondo (256×256 JPEG) |
 
 #### `POST /segment_bbox/`
 
@@ -120,69 +140,94 @@ Recibe una imagen y un bounding box dibujado por el usuario. Devuelve un PNG con
 | Campo | Tipo | Descripción |
 |---|---|---|
 | `file` | `UploadFile` | Imagen del producto (JPEG, PNG, etc.) |
-| `bbox` | `string` (JSON) | Array de 4 coordenadas relativas `[x1, y1, x2, y2]` en rango `[0, 1]` |
+| `bbox` | `string` (JSON) | Array `[x1, y1, x2, y2]` con coordenadas relativas en `[0, 1]` |
+| `max_side` | `int` (opcional) | Limita el lado mayor de la imagen antes de segmentar |
 
-**Flujo interno:**
+#### `POST /segment_auto/`
 
-1. Parsea y valida las coordenadas del bounding box.
-2. Abre la imagen con Pillow y corrige la orientación EXIF (`ImageOps.exif_transpose`).
-3. Convierte las coordenadas relativas (0–1) a píxeles absolutos.
-4. Re-codifica la imagen corregida como PNG en bytes.
-5. Envía imagen + bbox a SAM2 vía Replicate.
-6. Devuelve el PNG resultante con `Content-Type: image/png`.
+Detecta automáticamente el objeto principal mediante Canny edge detection y lanza FastSAM sobre el bbox calculado.
 
-**Respuesta:** `200 OK` con body binario PNG, o `400`/`500` con detalle del error.
+**Parámetros:** `file`, `max_side` (igual que `/segment_bbox/`, sin `bbox`).
 
-**Configuración CORS:** Permite todos los orígenes (`*`), métodos y cabeceras para facilitar el desarrollo local.
+#### `POST /compose/studio/`
+
+Compone el PNG segmentado sobre un fondo procedural de estudio (blanco o gris suave) con sombras de suelo.
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `file` | `UploadFile` | PNG con fondo transparente |
+| `style` | `string` | `'white'` \| `'soft_gray'` |
+| `position` | `string` (JSON, opcional) | `[rel_cx, rel_y_feet]` para posicionado manual |
+| `scale` | `float` (opcional) | Ratio altura silueta / altura canvas |
+| `canvas` | `string` (JSON, opcional) | `[W, H]` en píxeles. Por defecto `1024×1024` |
+
+#### `POST /compose/scene/`
+
+Compone el PNG segmentado sobre un fondo local del catálogo con armonización de color.
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `file` | `UploadFile` | PNG con fondo transparente |
+| `background_id` | `string` | `'<categoria>/<nombre>'` del catálogo |
+| `position` | `string` (JSON, opcional) | Override de posición |
+| `scale` | `float` (opcional) | Override de escala |
+| `harmonize_strength` | `float` | Intensidad de armonización LAB (0–1, por defecto `0.45`) |
+| `canvas` | `string` (JSON, opcional) | Tamaño del canvas. Por defecto = tamaño del fondo |
 
 ---
 
 ### Módulo de segmentación (`segmentation.py`)
 
-Gestiona la comunicación con el modelo **SAM2** (`meta/sam-2`) alojado en Replicate.
+Ejecuta **FastSAM** localmente sobre la imagen del usuario. El modelo se carga una única vez al arrancar el servidor (`lifespan`) y se reutiliza en todas las peticiones.
 
-**Función principal:** `segment_with_sam_api(image_bytes, bbox) -> bytes`
+**Función principal:** `segment_with_fastsam(pil_image, bbox, debug) -> bytes`
 
-| Paso | Operación |
+El pipeline completo tiene cinco etapas:
+
+| Etapa | Operación |
 |---|---|
-| 1 | Codifica la imagen en Base64 y la envuelve como `data:` URI |
-| 2 | Envía la imagen y el bbox a `replicate.run()` en un hilo separado (`asyncio.to_thread`) para no bloquear el event loop |
-| 3 | Recibe la URL de la máscara generada por SAM2 |
-| 4 | Descarga la máscara con `httpx` (cliente asíncrono, timeout 60s) |
-| 5 | Abre la imagen original (RGB) y la máscara (escala de grises) con Pillow |
-| 6 | Redimensiona la máscara al tamaño de la original si difieren |
-| 7 | Compone la imagen RGBA final aplicando la máscara como canal alfa |
+| 1 · Preprocesado | Resize manteniendo aspect ratio + padding centrado en canvas cuadrado de 1024 px (mismo letterbox que YOLO). Se almacena el metadata de escala y padding para revertirlo después. |
+| 2 · Inferencia | FastSAM se ejecuta sobre el canvas preprocesado. Se aplican dos filtros a las máscaras brutas: descarte de máscaras que tocan los bordes de la imagen y descarte de máscaras cuya área queda mayoritariamente fuera del bbox del usuario. |
+| 3 · Selección de máscara | Se intentan cinco estrategias en orden: unión de fragmentos contenidos en el bbox (reconstituye objetos que FastSAM devuelve segmentados), box prompt nativo de FastSAM, box prompt por IoU, point prompt (centro del bbox), y selección por score compuesto (cobertura × overlap × centroide × alineamiento con bordes Canny). |
+| 4 · Postprocesado | La máscara se recorta al tamaño original revirtiendo el padding y la escala. Se aplica un clip estricto al bbox del usuario, se eliminan componentes conexos que tocan el borde de la imagen, y se descartan fragmentos pequeños desconectados del objeto principal. |
+| 5 · Composición RGBA | La máscara binaria se aplica como canal alfa sobre la imagen original RGB y se serializa como PNG. |
 
 ---
 
-### Módulo de generación de fondo (`generation.py`)
+### Pipeline de composición local (`composition/`)
 
-Integración con la **API de Photoroom** para generar fondos personalizados a partir de un prompt de texto.
+Módulo sin dependencias externas que genera imágenes de producto listas para e-commerce a partir de un PNG con fondo transparente.
 
-**Función:** `generate_background_via_api(image_bytes, prompt) -> bytes`
+#### Modo estudio (`studio.py`)
 
-- Envía la imagen segmentada (PNG con fondo transparente) al endpoint `v2/edit` de Photoroom.
-- Aplica un padding de `0.1` para que el objeto tenga margen visual.
-- El prompt describe el fondo deseado (p.ej. "fondo minimalista blanco con sombra suave").
-- Devuelve los bytes de la imagen con el nuevo fondo generado.
+Genera un fondo procedural (blanco `#FFFFFF` o gris suave) con gradiente de viñeta y sombra de suelo. El objeto se posiciona y escala automáticamente para ocupar el 80% de la altura del canvas, centrado horizontalmente y apoyado en el tercio inferior.
 
-> **Nota:** Este módulo está implementado pero aún no conectado a un endpoint público en `main.py`.
+#### Modo escena (`scene.py`)
+
+Compone el objeto sobre una imagen de fondo local del catálogo. Incluye:
+
+- **Armonización de color** (`harmonization.py`): transferencia de media/desviación en espacio LAB del fondo al objeto, con intensidad controlada por `harmonize_strength`.
+- **Posicionado automático** (`placement.py`): calcula la posición y escala óptimas según metadatos del fondo (`ground_y`, `light_dir`).
+- **Sombras** (`shadows.py`): sombras de suelo proyectadas según la dirección de luz del fondo.
+- **Reflexiones** (`reflections.py`): para fondos marcados como `reflective` en el catálogo.
+- **Relighting** (`relighting.py`): ajuste de la luminancia global del objeto para casar con la exposición del fondo.
+- **Limpieza de bordes** (`edges.py`): erosión elíptica + micro-feathering del canal alfa para eliminar halos.
+
+#### Catálogo de fondos (`catalog.py`)
+
+Escanea la carpeta `backgrounds/` al arrancar el servidor. Las imágenes se organizan por subcarpeta (categoría). Los metadatos opcionales (posición del suelo, dirección de luz, superficie reflectante) se pueden definir junto a cada imagen y son leídos por el modo escena.
 
 ---
 
-### Utilidades de preprocesamiento (`utils.py`)
+### Utilidades (`utils.py`)
 
-**Función:** `pre_procesar_objeto_universal(pil_image_original) -> PIL.Image`
+**`detectar_bbox_canny(pil_image, padding) -> [x1, y1, x2, y2]`**
 
-Limpieza avanzada de la imagen segmentada antes de enviarla a APIs externas de generación de fondo. Elimina artefactos de borde (halos blancos) que pueden degradar la calidad del resultado final.
+Detecta el bounding box del objeto principal usando Canny edge detection con umbrales adaptativos basados en la mediana de la imagen. Se usa en el endpoint `/segment_auto/`.
 
-**Pipeline:**
+**`pre_procesar_objeto_universal(pil_image) -> PIL.Image`**
 
-| Paso | Técnica | Detalle |
-|---|---|---|
-| 1 | **Inpainting Telea** | Rellena píxeles semi-transparentes del borde con colores interpolados del objeto, eliminando halos blancos o sucios |
-| 2 | **Erosión elíptica** | Contrae el canal alfa 1 px con kernel elíptico (`MORPH_ELLIPSE` 3x3), respetando curvas naturales del objeto |
-| 3 | **Micro-feathering** | Aplica `GaussianBlur(radius=0.8)` al alfa para una transición suave y fotográfica entre objeto y fondo |
+Limpieza de halos del canal alfa: inpainting Telea en píxeles semi-transparentes → erosión elíptica 1 px → micro-feathering gaussiano (radius 0.8). La pipeline de composición usa una versión equivalente en `composition/edges.py`.
 
 ---
 
@@ -206,7 +251,6 @@ La interfaz se divide en dos paneles:
 
 ### Detalles técnicos del canvas de bounding box
 
-- 5 puntos de muestreo en cruz centrada con margen del 7% para un prompt de punto robusto.
 - Compensación automática del aspect ratio entre el elemento DOM y la imagen natural (`getImageBounds()`).
 - Conversión bidireccional coordenadas de pantalla ↔ coordenadas relativas de imagen.
 - Descarte de cajas accidentales (< 1% del ancho o alto de la imagen).
@@ -219,7 +263,9 @@ La interfaz se divide en dos paneles:
 
 - Python 3.10+
 - Node.js 18+
-- Cuenta en [Replicate](https://replicate.com/) con token de API configurado (`REPLICATE_API_TOKEN`)
+- Pesos del modelo en `backend/app/models/FastSAM-s.pt` (descargables desde [Ultralytics FastSAM](https://github.com/ultralytics/assets/releases))
+
+**No se necesita ninguna clave de API externa.**
 
 ### Backend
 
@@ -236,7 +282,7 @@ cd backend/app
 uvicorn main:app --reload
 ```
 
-El servidor arranca en `http://localhost:8000`.
+El servidor arranca en `http://localhost:8000`. Al iniciarse, carga el modelo FastSAM en memoria y escanea el catálogo de fondos.
 
 ### Frontend
 
@@ -248,12 +294,6 @@ npm run dev
 
 El cliente arranca en `http://localhost:5173` (puerto por defecto de Vite).
 
-### Variables de entorno
-
-| Variable | Descripción |
-|---|---|
-| `REPLICATE_API_TOKEN` | Token de autenticación para la API de Replicate |
-
 ---
 
 ## Requisitos del sistema
@@ -261,24 +301,6 @@ El cliente arranca en `http://localhost:5173` (puerto por defecto de Vite).
 | Componente | Mínimo recomendado |
 |---|---|
 | RAM | 8 GB |
-| GPU | Opcional (la inferencia se ejecuta en la nube vía Replicate) |
-| Almacenamiento | ~200 MB (dependencias + pesos FastSAM-s.pt) |
-| Red | Conexión a Internet requerida para las APIs de Replicate y Photoroom |
-
----
-
-## APIs externas
-
-### Replicate — SAM2 (Meta)
-
-- **Modelo:** `meta/sam-2`
-- **Propósito:** Segmentación semántica de objetos mediante bounding box.
-- **Tipo de entrada:** Imagen (Base64 data URI) + coordenadas de bounding box en píxeles.
-- **Tipo de salida:** URL a la máscara binaria generada (escala de grises).
-
-### Photoroom — Image Editing API
-
-- **Endpoint:** `https://image-api.photoroom.com/v2/edit`
-- **Propósito:** Generación de fondos a partir de prompt textual sobre imagen segmentada.
-- **Tipo de entrada:** Imagen PNG (multipart) + prompt de fondo.
-- **Tipo de salida:** Imagen con fondo generado.
+| GPU | Opcional (FastSAM se ejecuta en CPU por defecto) |
+| Almacenamiento | ~200 MB (dependencias + pesos `FastSAM-s.pt`) |
+| Red | No requerida (procesamiento 100% local) |
