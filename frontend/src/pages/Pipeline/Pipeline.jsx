@@ -40,25 +40,25 @@ export default function Pipeline({ mode = 'full' }) {
   const navigate = useNavigate()
   const onBackHome = () => navigate('/')
 
-  const [imageFile, setImageFile]     = useState(null)
-  const [imageObj, setImageObj]       = useState(null)
-  const [bbox, setBbox]               = useState(null)
-  const [drawing, setDrawing]         = useState(null)
-  const [segResult, setSegResult]     = useState(null)
-  const [segBlob, setSegBlob]         = useState(null)
-  const [genResult, setGenResult]     = useState(null)
-  const [loading, setLoading]         = useState(false)
-  const [generating, setGenerating]   = useState(false)
-  const [error, setError]             = useState(null)
+  const [imageFile, setImageFile] = useState(null)
+  const [imageObj, setImageObj] = useState(null)
+  const [bbox, setBbox] = useState(null)
+  const [drawing, setDrawing] = useState(null)
+  const [segResult, setSegResult] = useState(null)
+  const [segBlob, setSegBlob] = useState(null)
+  const [genResult, setGenResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState(null)
   const [fileDragging, setFileDragging] = useState(false)
 
   // MODO de composición ('studio' = Estudio profesional, 'scene' = Escena comercial).
   const [composeMode, setComposeMode] = useState('studio')
   const [studioStyle, setStudioStyle] = useState('white')
   const [backgrounds, setBackgrounds] = useState({})
-  const [selectedBg, setSelectedBg]   = useState(null)
-  const [placement, setPlacement]     = useState({ x: 0.5, y: 0.78, scale: 0.4 })
-  const [harmonize, setHarmonize]     = useState(0.45)
+  const [selectedBg, setSelectedBg] = useState(null)
+  const [placement, setPlacement] = useState({ x: 0.5, y: 0.78, scale: 0.4 })
+  const [harmonize, setHarmonize] = useState(0.45)
 
   // Resolución máxima antes de pasar al modelo (null = original)
   const [resizeMaxSide, setResizeMaxSide] = useState(640)
@@ -75,7 +75,7 @@ export default function Pipeline({ mode = 'full' }) {
   // Visor de instrucciones (modal)
   const [showHelp, setShowHelp] = useState(false)
 
-  const imgRef    = useRef(null)
+  const imgRef = useRef(null)
   const fileInput = useRef(null)
 
   // Cargar catálogo de backgrounds locales del backend
@@ -85,10 +85,10 @@ export default function Pipeline({ mode = 'full' }) {
       .then(data => {
         setBackgrounds(data || {})
         const firstCat = Object.keys(data || {})[0]
-        const firstBg  = firstCat && data[firstCat]?.[0]
+        const firstBg = firstCat && data[firstCat]?.[0]
         if (firstBg) setSelectedBg(firstBg.id)
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   // Adaptar la posición por defecto según el modo activo
@@ -117,7 +117,7 @@ export default function Pipeline({ mode = 'full' }) {
     }
     if (genResult) return { url: genResult, kind: 'generated' }
     if (segResult) return { url: segResult, kind: 'segmented' }
-    if (imageObj)  return { url: imageObj.url, kind: mode === 'generate' ? 'segmented' : 'original' }
+    if (imageObj) return { url: imageObj.url, kind: mode === 'generate' ? 'segmented' : 'original' }
     return null
   }, [imageObj, segResult, genResult, activeTab, segMode, mode])
 
@@ -132,20 +132,20 @@ export default function Pipeline({ mode = 'full' }) {
 
   const getImageBounds = useCallback(() => {
     if (!imgRef.current || !imageObj) return null
-    const rect      = imgRef.current.getBoundingClientRect()
-    const elAspect  = rect.width / rect.height
+    const rect = imgRef.current.getBoundingClientRect()
+    const elAspect = rect.width / rect.height
     const imgAspect = imageObj.width / imageObj.height
 
     let imgLeft, imgTop, imgW, imgH
     if (imgAspect > elAspect) {
-      imgW    = rect.width
-      imgH    = rect.width / imgAspect
+      imgW = rect.width
+      imgH = rect.width / imgAspect
       imgLeft = rect.left
-      imgTop  = rect.top + (rect.height - imgH) / 2
+      imgTop = rect.top + (rect.height - imgH) / 2
     } else {
-      imgH    = rect.height
-      imgW    = rect.height * imgAspect
-      imgTop  = rect.top
+      imgH = rect.height
+      imgW = rect.height * imgAspect
+      imgTop = rect.top
       imgLeft = rect.left + (rect.width - imgW) / 2
     }
     return { left: imgLeft, top: imgTop, width: imgW, height: imgH }
@@ -155,7 +155,7 @@ export default function Pipeline({ mode = 'full' }) {
     const b = getImageBounds()
     if (!b) return null
     const rx = Math.max(0, Math.min(1, (clientX - b.left) / b.width))
-    const ry = Math.max(0, Math.min(1, (clientY - b.top)  / b.height))
+    const ry = Math.max(0, Math.min(1, (clientY - b.top) / b.height))
     return { rx, ry }
   }, [getImageBounds])
 
@@ -244,9 +244,9 @@ export default function Pipeline({ mode = 'full' }) {
 
     const wrapperRect = imgRef.current.parentElement.getBoundingClientRect()
 
-    const left   = (bounds.left - wrapperRect.left) + Math.min(box.x1, box.x2) * bounds.width
-    const top    = (bounds.top  - wrapperRect.top)  + Math.min(box.y1, box.y2) * bounds.height
-    const width  = Math.abs(box.x2 - box.x1) * bounds.width
+    const left = (bounds.left - wrapperRect.left) + Math.min(box.x1, box.x2) * bounds.width
+    const top = (bounds.top - wrapperRect.top) + Math.min(box.y1, box.y2) * bounds.height
+    const width = Math.abs(box.x2 - box.x1) * bounds.width
     const height = Math.abs(box.y2 - box.y1) * bounds.height
 
     return { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` }
@@ -374,17 +374,17 @@ export default function Pipeline({ mode = 'full' }) {
   }, [activeTab, segMode, imageObj, bbox, isProcessing, generateUnlocked, composeMode, selectedBg, handleCompose])
 
   // ── Tabs disponibles según modo ──
-  const showSegmentTab  = mode !== 'generate'
+  const showSegmentTab = mode !== 'generate'
   const showGenerateTab = mode !== 'segment'
 
   const headerTitle =
-    mode === 'full'     ? 'PROFESIONALIZAR IMAGEN' :
-    mode === 'generate' ? 'GENERAR FONDO' :
-                          'SEGMENTAR'
+    mode === 'full' ? 'PROFESIONALIZAR IMAGEN' :
+      mode === 'generate' ? 'GENERAR FONDO' :
+        'SEGMENTAR'
 
-  const handleReset  = () => { resetAllState() }
-  const handleClear  = () => { resetAllState({ full: true }); setActiveTab(initialTab); setSegMode('auto') }
-  const handleZoomIn  = () => setZoom(z => Math.min(z + 0.15, 3))
+  const handleReset = () => { resetAllState() }
+  const handleClear = () => { resetAllState({ full: true }); setActiveTab(initialTab); setSegMode('auto') }
+  const handleZoomIn = () => setZoom(z => Math.min(z + 0.15, 3))
   const handleZoomOut = () => setZoom(z => Math.max(z - 0.15, 0.4))
 
   return (
@@ -454,10 +454,10 @@ export default function Pipeline({ mode = 'full' }) {
             <PropRow k="MODO" v={mode === 'full' ? 'Pipeline' : mode === 'segment' ? 'Segmentar' : 'Generar fondo'} />
             <PropRow k="ESTADO" v={
               isProcessing ? (loading ? 'Segmentando…' : 'Generando…') :
-              genResult    ? 'Imagen generada' :
-              segResult    ? 'Segmentación lista' :
-              imageObj     ? 'Listo para procesar' :
-                             'Sin imagen'
+                genResult ? 'Imagen generada' :
+                  segResult ? 'Segmentación lista' :
+                    imageObj ? 'Listo para procesar' :
+                      'Sin imagen'
             } accent={!!(genResult || segResult)} />
           </div>
         </div>
@@ -547,133 +547,133 @@ export default function Pipeline({ mode = 'full' }) {
       {/* Panel inferior */}
       <section className="pl-panel">
         <div className={`pl-panel-collapsible ${panelCollapsed ? 'collapsed' : ''}`}>
-        {/* Fila 1: sub-opciones del tab activo */}
-        <div className="pl-panel-options">
-          {activeTab === 'segment' && (
-            <div className="opt-seg-row">
-              {segMode === 'auto' && (
-                <span className="opt-info">
-                  Detecta automáticamente el objeto principal con FastSAM.
-                </span>
-              )}
-              {segMode === 'manual' && (
-                <span className="opt-info">
-                  {imageObj
-                    ? (bbox
+          {/* Fila 1: sub-opciones del tab activo */}
+          <div className="pl-panel-options">
+            {activeTab === 'segment' && (
+              <div className="opt-seg-row">
+                {segMode === 'auto' && (
+                  <span className="opt-info">
+                    Detecta automáticamente el objeto principal con FastSAM.
+                  </span>
+                )}
+                {segMode === 'manual' && (
+                  <span className="opt-info">
+                    {imageObj
+                      ? (bbox
                         ? 'Recuadro listo. Pulsa SEGMENTAR para procesar (o redibújalo).'
                         : 'Dibuja un recuadro sobre el objeto en la imagen central.')
-                    : 'Sube primero una imagen.'}
-                </span>
-              )}
-              <label className="resize-ctrl">
-                <span className="resize-label">RESOLUCIÓN</span>
-                <select
-                  className="resize-select"
-                  value={resizeMaxSide ?? ''}
-                  onChange={e => setResizeMaxSide(e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">Original</option>
-                  <option value="3840">4K (3840 px)</option>
-                  <option value="2560">2.5K (2560 px)</option>
-                  <option value="1920">Full HD (1920 px)</option>
-                  <option value="1280">HD (1280 px)</option>
-                  <option value="960">960 px</option>
-                  <option value="640">640 px</option>
-                </select>
-              </label>
-            </div>
-          )}
+                      : 'Sube primero una imagen.'}
+                  </span>
+                )}
+                <label className="resize-ctrl">
+                  <span className="resize-label">RESOLUCIÓN</span>
+                  <select
+                    className="resize-select"
+                    value={resizeMaxSide ?? ''}
+                    onChange={e => setResizeMaxSide(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">Original</option>
+                    <option value="3840">4K (3840 px)</option>
+                    <option value="2560">2.5K (2560 px)</option>
+                    <option value="1920">Full HD (1920 px)</option>
+                    <option value="1280">HD (1280 px)</option>
+                    <option value="960">960 px</option>
+                    <option value="640">640 px</option>
+                  </select>
+                </label>
+              </div>
+            )}
 
-          {activeTab === 'generate' && composeMode === 'studio' && (
-            <div className="opt-styles">
-              {STUDIO_STYLES.map(s => (
-                <button
-                  key={s.key}
-                  className={`style-card ${studioStyle === s.key ? 'selected' : ''}`}
-                  onClick={() => setStudioStyle(s.key)}
-                  disabled={!generateUnlocked}
-                  title={s.desc}
-                >
-                  <div className={`style-preview style-${s.key}`} />
-                  <span className="style-label">{s.label}</span>
-                </button>
-              ))}
-              <ComposeControls
-                placement={placement}
-                onPlacement={setPlacement}
-                showHarmonize={false}
-              />
-            </div>
-          )}
+            {activeTab === 'generate' && composeMode === 'studio' && (
+              <div className="opt-styles">
+                {STUDIO_STYLES.map(s => (
+                  <button
+                    key={s.key}
+                    className={`style-card ${studioStyle === s.key ? 'selected' : ''}`}
+                    onClick={() => setStudioStyle(s.key)}
+                    disabled={!generateUnlocked}
+                    title={s.desc}
+                  >
+                    <div className={`style-preview style-${s.key}`} />
+                    <span className="style-label">{s.label}</span>
+                  </button>
+                ))}
+                <ComposeControls
+                  placement={placement}
+                  onPlacement={setPlacement}
+                  showHarmonize={false}
+                />
+              </div>
+            )}
 
-          {activeTab === 'generate' && composeMode === 'scene' && (
-            <div className="opt-scene">
-              {Object.keys(backgrounds).length === 0 ? (
-                <span className="opt-info">
-                  No hay backgrounds en <code>backend/app/backgrounds/</code>. Añade imágenes y reinicia el servidor (o POST <code>/backgrounds/rescan/</code>).
-                </span>
-              ) : (
-                <div className="bg-categories">
-                  {Object.entries(backgrounds).map(([cat, items]) => (
-                    <div key={cat} className="bg-category">
-                      <div className="bg-category-title">{cat.toUpperCase()}</div>
-                      <div className="bg-grid">
-                        {items.map(bg => (
-                          <button
-                            key={bg.id}
-                            className={`bg-thumb ${selectedBg === bg.id ? 'selected' : ''}`}
-                            onClick={() => setSelectedBg(bg.id)}
-                            disabled={!generateUnlocked}
-                            title={bg.label}
-                          >
-                            <img src={`${API_URL}${bg.thumb_url}`} alt={bg.label} />
-                            {bg.reflective && <span className="bg-badge">✨</span>}
-                            <span className="bg-thumb-label">{bg.label}</span>
-                          </button>
-                        ))}
+            {activeTab === 'generate' && composeMode === 'scene' && (
+              <div className="opt-scene">
+                {Object.keys(backgrounds).length === 0 ? (
+                  <span className="opt-info">
+                    No hay backgrounds en <code>backend/app/backgrounds/</code>. Añade imágenes y reinicia el servidor (o POST <code>/backgrounds/rescan/</code>).
+                  </span>
+                ) : (
+                  <div className="bg-categories">
+                    {Object.entries(backgrounds).map(([cat, items]) => (
+                      <div key={cat} className="bg-category">
+                        <div className="bg-category-title">{cat.toUpperCase()}</div>
+                        <div className="bg-grid">
+                          {items.map(bg => (
+                            <button
+                              key={bg.id}
+                              className={`bg-thumb ${selectedBg === bg.id ? 'selected' : ''}`}
+                              onClick={() => setSelectedBg(bg.id)}
+                              disabled={!generateUnlocked}
+                              title={bg.label}
+                            >
+                              <img src={`${API_URL}${bg.thumb_url}`} alt={bg.label} />
+                              {bg.reflective && <span className="bg-badge">✨</span>}
+                              <span className="bg-thumb-label">{bg.label}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <ComposeControls
-                placement={placement}
-                onPlacement={setPlacement}
-                showHarmonize={true}
-                harmonize={harmonize}
-                onHarmonize={setHarmonize}
-              />
-            </div>
-          )}
-        </div>
+                    ))}
+                  </div>
+                )}
+                <ComposeControls
+                  placement={placement}
+                  onPlacement={setPlacement}
+                  showHarmonize={true}
+                  harmonize={harmonize}
+                  onHarmonize={setHarmonize}
+                />
+              </div>
+            )}
+          </div>
 
-        {/* Fila 2: sub-tabs (categorías) */}
-        <div className="pl-panel-subtabs">
-          {activeTab === 'segment' && (
-            <>
-              <button
-                className={`subtab ${segMode === 'auto' ? 'active' : ''}`}
-                onClick={() => setSegMode('auto')}
-              >AUTO-SEGMENTAR</button>
-              <button
-                className={`subtab ${segMode === 'manual' ? 'active' : ''}`}
-                onClick={() => setSegMode('manual')}
-              >BOUNDING BOX MANUAL</button>
-            </>
-          )}
-          {activeTab === 'generate' && (
-            <>
-              <button
-                className={`subtab ${composeMode === 'studio' ? 'active' : ''}`}
-                onClick={() => setComposeMode('studio')}
-              >ESTUDIO PROFESIONAL</button>
-              <button
-                className={`subtab ${composeMode === 'scene' ? 'active' : ''}`}
-                onClick={() => setComposeMode('scene')}
-              >ESCENA COMERCIAL</button>
-            </>
-          )}
-        </div>
+          {/* Fila 2: sub-tabs (categorías) */}
+          <div className="pl-panel-subtabs">
+            {activeTab === 'segment' && (
+              <>
+                <button
+                  className={`subtab ${segMode === 'auto' ? 'active' : ''}`}
+                  onClick={() => setSegMode('auto')}
+                >AUTO-SEGMENTAR</button>
+                <button
+                  className={`subtab ${segMode === 'manual' ? 'active' : ''}`}
+                  onClick={() => setSegMode('manual')}
+                >BOUNDING BOX MANUAL</button>
+              </>
+            )}
+            {activeTab === 'generate' && (
+              <>
+                <button
+                  className={`subtab ${composeMode === 'studio' ? 'active' : ''}`}
+                  onClick={() => setComposeMode('studio')}
+                >ESTUDIO PROFESIONAL</button>
+                <button
+                  className={`subtab ${composeMode === 'scene' ? 'active' : ''}`}
+                  onClick={() => setComposeMode('scene')}
+                >ESCENA COMERCIAL</button>
+              </>
+            )}
+          </div>
         </div>{/* /pl-panel-collapsible */}
 
         {/* Fila 3: tabs principales + acción */}
@@ -709,7 +709,7 @@ export default function Pipeline({ mode = 'full' }) {
 
           <button
             className="pl-action-btn"
-            onClick={primaryAction.onClick || (() => {})}
+            onClick={primaryAction.onClick || (() => { })}
             disabled={primaryAction.disabled}
           >
             {primaryAction.label}

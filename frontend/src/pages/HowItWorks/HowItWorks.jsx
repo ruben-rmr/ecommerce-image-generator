@@ -81,7 +81,7 @@ export default function HowItWorks() {
           </button>
 
           {menuOpen && (
-            <nav className="menu-panel">
+            <nav className="menu-panel open">
               <ul>
                 <li className="menu-item" onClick={() => go('/profesionalizar')}>Profesionalizar imagen</li>
                 <li className="menu-item" onClick={() => go('/galeria')}>Galería de estilos</li>
@@ -98,13 +98,13 @@ export default function HowItWorks() {
         <h1 className="howitworks-title">¿Cómo funciona?</h1>
 
         <div className="howitworks-images">
-          <img src="/demonstration/joyero_resized_more.jpg" alt="" className="howitworks-img" />
-          <img src="/demonstration/joyero_resultado.png" alt="" className="howitworks-img" />
+          <img src="/demonstration/colonia.jpeg" alt="" className="howitworks-img" />
+          <img src="/demonstration/generado_colonia.png" alt="" className="howitworks-img" />
         </div>
 
         <ol className="howitworks-text howitworks-steps">
           <li>
-            <strong>Accede a «Profesionalizar imagen»</strong> desde el menú superior.
+            <strong>Accede a «<a href="/profesionalizar">Profesionalizar imagen</a>»</strong> desde el menú superior.
             Allí encontrarás el flujo completo en un solo lugar.
           </li>
           <li>
@@ -140,6 +140,7 @@ export default function HowItWorks() {
           </div>
 
           <ul className="hiw-rec-list">
+            <li>Para un resultado óptimo, el objeto debe aparecer <strong>de frente</strong>, sin inclinaciones de perspectiva en la fotografía.</li>
             <li>El objeto debe aparecer <strong>completo</strong> en la fotografía, sin que ninguna parte quede cortada por los bordes.</li>
             <li>Usa preferiblemente un <strong>fondo simple y neutro</strong> (blanco, gris o liso): facilita enormemente la detección automática.</li>
             <li>Asegúrate de que el producto esté <strong>bien iluminado</strong>, sin sombras duras ni zonas sobreexpuestas.</li>

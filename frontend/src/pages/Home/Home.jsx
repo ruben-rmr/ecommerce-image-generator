@@ -84,8 +84,8 @@ export default function Home() {
 
         <div className="brand-logo">{BRAND_LOGO}</div>
 
-        <button className="cta-3d" onClick={() => go('/preview-3d')}>
-          TRY A 3D PREVIEW <span className="cta-icon" aria-hidden="true">⌖</span>
+        <button className="cta-3d" onClick={() => go('/como-funciona')}>
+          CONOCE EL PROYECTO <span className="cta-icon" aria-hidden="true">⌖</span>
         </button>
       </header>
 
