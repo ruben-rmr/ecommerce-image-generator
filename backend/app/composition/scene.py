@@ -18,7 +18,7 @@ from .edges import prepare_object
 from .placement import place_on_scene, detect_ground_y, background_roi_below_object
 from .harmonization import harmonize_lab, brightness_contrast_match, atmospheric_blend
 from .relighting import estimate_light_dir, apply_directional_relight
-from .shadows import contact_shadow, scene_shadow
+from .shadows import contact_shadow, cast_shadow
 from .reflections import make_reflection, reflection_top_left
 
 
@@ -88,10 +88,10 @@ def compose_scene(png_bytes: bytes,
     # 7) Compose canvas: shadows under, then object, then reflection above shadows.
     canvas = bg.copy()
 
-    drop = scene_shadow(canvas_size, obj_harm[..., 3], top_left,
-                        light_dir=light_dir, length=0.55, squash=0.28,
-                        sigma=22.0, intensity=0.40)
-    canvas = multiply_shadow(canvas, drop, color=(15, 15, 15), opacity=1.0)
+    drop = cast_shadow(canvas_size, obj_harm[..., 3], top_left,
+                       light_dir=light_dir, length=0.55, squash=0.28,
+                       fade=0.5, sigma_contact=5.0, sigma_tip=26.0, intensity=0.55)
+    canvas = multiply_shadow(canvas, drop, color=(0, 0, 0), opacity=1.0)
 
     # Optional reflection (matte/glossy).
     reflective = bool(metadata.get("reflective", False))
