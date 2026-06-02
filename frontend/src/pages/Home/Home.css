@@ -1,10 +1,13 @@
 /* ── Home page ────────────────────────────────────────────────────── */
 
 :root {
-  --home-accent: #c8ff2e;       /* verde lima de botones / subtítulos */
+  --home-accent: #c8ff2e;
+  /* verde lima de botones / subtítulos */
   --home-accent-soft: rgba(200, 255, 46, 0.7);
-  --home-text: #ffffff;          /* color de letra principal */
-  --home-bg-fallback: #0a0820;   /* color sólido si no hay imagen */
+  --home-text: #ffffff;
+  /* color de letra principal */
+  --home-bg-fallback: #0a0820;
+  /* color sólido si no hay imagen */
 }
 
 .home {
@@ -43,8 +46,8 @@
     linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 80px 80px;
-  mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.9), transparent 80%);
-  -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.9), transparent 80%);
+  mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.9), transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.9), transparent 80%);
 }
 
 /* Esquinas decorativas */
@@ -56,10 +59,30 @@
   border-style: solid;
   pointer-events: none;
 }
-.corner-tl { top: 18px;    left: 18px;    border-width: 2px 0 0 2px; }
-.corner-tr { top: 18px;    right: 18px;   border-width: 2px 2px 0 0; }
-.corner-bl { bottom: 18px; left: 18px;    border-width: 0 0 2px 2px; }
-.corner-br { bottom: 18px; right: 18px;   border-width: 0 2px 2px 0; }
+
+.corner-tl {
+  top: 18px;
+  left: 18px;
+  border-width: 2px 0 0 2px;
+}
+
+.corner-tr {
+  top: 18px;
+  right: 18px;
+  border-width: 2px 2px 0 0;
+}
+
+.corner-bl {
+  bottom: 18px;
+  left: 18px;
+  border-width: 0 0 2px 2px;
+}
+
+.corner-br {
+  bottom: 18px;
+  right: 18px;
+  border-width: 0 2px 2px 0;
+}
 
 /* ── Header ──────────────────────────────────────────────────────── */
 .home-header {
@@ -69,6 +92,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.6rem 2.2rem;
+  background: linear-gradient(to bottom,
+      rgba(0, 0, 0, 0.55) 20%,
+      rgba(0, 0, 0, 0) 100%);
 }
 
 .brand-logo {
@@ -79,7 +105,9 @@
 }
 
 /* Menu button */
-.menu-wrapper { position: relative; }
+.menu-wrapper {
+  position: relative;
+}
 
 .menu-btn {
   display: inline-flex;
@@ -97,14 +125,23 @@
   backdrop-filter: blur(6px);
   transition: background 0.15s, border-color 0.15s;
 }
-.menu-btn:hover { background: rgba(0, 0, 0, 0.55); border-color: var(--home-accent-soft); }
-.menu-btn.open  { background: rgba(0, 0, 0, 0.7); border-color: var(--home-accent); }
+
+.menu-btn:hover {
+  background: rgba(0, 0, 0, 0.55);
+  border-color: var(--home-accent-soft);
+}
+
+.menu-btn.open {
+  background: rgba(0, 0, 0, 0.7);
+  border-color: var(--home-accent);
+}
 
 .menu-icon {
   display: inline-flex;
   flex-direction: column;
   gap: 3px;
 }
+
 .menu-icon span {
   display: block;
   width: 14px;
@@ -130,13 +167,19 @@
   pointer-events: none;
   transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s;
 }
+
 .menu-panel.open {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
   pointer-events: auto;
 }
-.menu-panel ul { list-style: none; margin: 0; padding: 0.4rem 0; }
+
+.menu-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0.4rem 0;
+}
 
 .menu-item {
   position: relative;
@@ -148,7 +191,11 @@
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
-.menu-item:hover { background: rgba(200, 255, 46, 0.1); color: var(--home-accent); }
+
+.menu-item:hover {
+  background: rgba(200, 255, 46, 0.1);
+  color: var(--home-accent);
+}
 
 .menu-item-label {
   display: flex;
@@ -157,8 +204,16 @@
   gap: 1rem;
   cursor: pointer;
 }
-.menu-item-label:hover { color: var(--home-accent); }
-.chev { color: var(--home-accent); font-size: 1.1rem; line-height: 1; }
+
+.menu-item-label:hover {
+  color: var(--home-accent);
+}
+
+.chev {
+  color: var(--home-accent);
+  font-size: 1.1rem;
+  line-height: 1;
+}
 
 /* Submenu (visible en hover) */
 .submenu {
@@ -178,8 +233,9 @@
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
 }
-.menu-item.has-submenu:hover > .submenu,
-.menu-item.has-submenu.sub-open > .submenu {
+
+.menu-item.has-submenu:hover>.submenu,
+.menu-item.has-submenu.sub-open>.submenu {
   opacity: 1;
   visibility: visible;
   transform: translateX(0);
@@ -196,7 +252,11 @@
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
-.submenu li:hover { background: rgba(200, 255, 46, 0.12); color: var(--home-accent); }
+
+.submenu li:hover {
+  background: rgba(200, 255, 46, 0.12);
+  color: var(--home-accent);
+}
 
 /* CTA top-right */
 .cta-3d {
@@ -214,8 +274,15 @@
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.cta-3d:hover { background: var(--home-accent); color: #0a0820; }
-.cta-icon { font-size: 0.9rem; }
+
+.cta-3d:hover {
+  background: var(--home-accent);
+  color: #0a0820;
+}
+
+.cta-icon {
+  font-size: 0.9rem;
+}
 
 /* ── Hero contenido ──────────────────────────────────────────────── */
 .hero-lead {
@@ -297,21 +364,57 @@
   opacity: 0.85;
   z-index: 5;
 }
-.coord-left  { left: 2.4rem; }
-.coord-right { right: 2.4rem; }
+
+.coord-left {
+  left: 2.4rem;
+}
+
+.coord-right {
+  right: 2.4rem;
+}
 
 /* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 720px) {
-  .home-header { padding: 1rem 1.2rem; }
-  .brand-logo { display: none; }
-  .hero-lead { top: 5.5rem; left: 1.2rem; }
-  .plus-marker { right: 1.4rem; top: 7rem; }
-  .hero-image { width: 90vw; height: 60vh; top: 6rem; }
-  .brand-title-wrapper { bottom: 3rem; }
-  .coord-left  { left: 1.2rem; }
-  .coord-right { right: 1.2rem; }
+  .home-header {
+    padding: 1rem 1.2rem;
+  }
 
-  .menu-panel { min-width: 200px; }
+  .brand-logo {
+    display: none;
+  }
+
+  .hero-lead {
+    top: 5.5rem;
+    left: 1.2rem;
+  }
+
+  .plus-marker {
+    right: 1.4rem;
+    top: 7rem;
+  }
+
+  .hero-image {
+    width: 90vw;
+    height: 60vh;
+    top: 6rem;
+  }
+
+  .brand-title-wrapper {
+    bottom: 3rem;
+  }
+
+  .coord-left {
+    left: 1.2rem;
+  }
+
+  .coord-right {
+    right: 1.2rem;
+  }
+
+  .menu-panel {
+    min-width: 200px;
+  }
+
   .submenu {
     position: static;
     margin: 0.25rem 0 0;
@@ -323,8 +426,9 @@
     border-radius: 0;
     background: transparent;
   }
-  .menu-item.has-submenu:hover > .submenu,
-  .menu-item.has-submenu.sub-open > .submenu {
+
+  .menu-item.has-submenu:hover>.submenu,
+  .menu-item.has-submenu.sub-open>.submenu {
     opacity: 1;
     visibility: visible;
     transform: none;

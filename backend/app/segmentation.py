@@ -644,6 +644,29 @@ def postprocess_mask(mask_canvas: np.ndarray, meta: dict) -> np.ndarray:
     return mask_original
 
 
+def _antialias_mask(mask_binary: np.ndarray, scale: float) -> np.ndarray:
+    """
+    Suaviza los bordes "en escalones" de la máscara binaria convirtiéndola en
+    un alpha con antialiasing (gradiente 0..255 en el borde).
+
+    La máscara se calcula a ~1024px y se reescala al tamaño original con
+    INTER_NEAREST, lo que produce un borde dentado cuyos "escalones" miden
+    aproximadamente 1/scale píxeles. Aplicamos un desenfoque gaussiano
+    proporcional a ese tamaño de escalón para fundir el dentado sin
+    redondear en exceso la silueta.
+
+    Args:
+        mask_binary: máscara HxW uint8 (0 o 255).
+        scale: meta["scale"] = tamaño_canvas / lado_mayor_original (<= 1).
+    Returns:
+        Máscara HxW uint8 con bordes suavizados (alpha antialiased).
+    """
+    step_px = 1.0 / max(scale, 1e-3)          # px originales por píxel de máscara
+    sigma = max(0.8, 0.6 * step_px)
+    soft = cv2.GaussianBlur(mask_binary, (0, 0), sigmaX=sigma, sigmaY=sigma)
+    return soft
+
+
 def _clip_mask_to_bbox(mask: np.ndarray, bbox: list[int]) -> np.ndarray:
     """
     Recorta la máscara estrictamente al bbox del usuario.
@@ -930,8 +953,12 @@ def segment_with_fastsam(
     mask_binary = _keep_largest_components(mask_binary)
     debug_imgs["14_mask_final"] = mask_binary
 
+    # ── 3d. Antialiasing de bordes: suavizar el dentado del borde binario ─
+    mask_alpha = _antialias_mask(mask_binary, meta["scale"])
+    debug_imgs["14b_mask_antialiased"] = mask_alpha
+
     # ── 4. Componer RGBA ─────────────────────────────────────────────────
-    mask_pil = Image.fromarray(mask_binary, mode="L")
+    mask_pil = Image.fromarray(mask_alpha, mode="L")
     result = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     result.paste(rgb, mask=mask_pil)
 

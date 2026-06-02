@@ -16,7 +16,7 @@ from .io_utils import (
 )
 from .edges import prepare_object
 from .placement import auto_scale
-from .shadows import contact_shadow, cast_shadow, fake_ambient_occlusion
+from .shadows import contact_shadow, cast_shadow
 from .relighting import apply_studio_keyfill
 
 
@@ -87,15 +87,15 @@ def compose_studio(png_bytes: bytes,
 
     canvas = _make_canvas(canvas_size, style)
 
-    ao = fake_ambient_occlusion(canvas_size, obj_resized[..., 3], top_left,
-                                radius=30, intensity=0.15)
+    # Nota: sin "ambient occlusion" alrededor de la silueta — generaba un halo de
+    # sombreado rodeando todo el objeto. Solo conservamos sombras de suelo reales
+    # (proyectada + contacto).
     drop = cast_shadow(canvas_size, obj_resized[..., 3], top_left,
                        light_dir=(-0.6, -0.6), length=0.45, squash=0.20,
                        fade=0.5, sigma_contact=4.0, sigma_tip=20.0, intensity=0.55)
     contact = contact_shadow(canvas_size, obj_resized[..., 3], top_left,
                              intensity=0.55, sigma=3.0, band_ratio=0.08)
 
-    canvas = multiply_shadow(canvas, ao,      color=(0, 0, 0), opacity=1.0)
     canvas = multiply_shadow(canvas, drop,    color=(0, 0, 0), opacity=1.0)
 
     obj_lit = apply_studio_keyfill(obj_resized, amplitude=6.0, mix=0.25)

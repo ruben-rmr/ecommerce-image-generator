@@ -1,28 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import NavBar from '../../components/NavBar/NavBar.jsx'
 import '../Home/Home.css'
 import './Mission.css'
 
 export default function Mission() {
   const navigate = useNavigate()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const onClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [menuOpen])
-
-  const go = (path) => {
-    setMenuOpen(false)
-    navigate(path)
-  }
 
   return (
     <div className="home">
@@ -33,32 +15,7 @@ export default function Mission() {
       <span className="corner corner-bl" aria-hidden="true" />
       <span className="corner corner-br" aria-hidden="true" />
 
-      <header className="home-header">
-        <div className="menu-wrapper" ref={menuRef}>
-          <button
-            className={`menu-btn ${menuOpen ? 'open' : ''}`}
-            onClick={() => setMenuOpen(o => !o)}
-            aria-expanded={menuOpen}
-          >
-            <span className="menu-icon" aria-hidden="true">
-              <span /><span /><span />
-            </span>
-            MENU
-          </button>
-
-          {menuOpen && (
-            <nav className="menu-panel">
-              <ul>
-                <li className="menu-item" onClick={() => go('/profesionalizar')}>Profesionalizar imagen</li>
-                <li className="menu-item" onClick={() => go('/galeria')}>Galería de estilos</li>
-                <li className="menu-item" onClick={() => go('/mision')}>Misión y visión</li>
-                <li className="menu-item" onClick={() => go('/como-funciona')}>¿Cómo funciona?</li>
-                <li className="menu-item" onClick={() => go('/contacto')}>Contacto</li>
-              </ul>
-            </nav>
-          )}
-        </div>
-      </header>
+      <NavBar />
 
       <section className="mission-content">
         <div className="mission-col">
@@ -85,7 +42,7 @@ export default function Mission() {
 
       <div className="mission-back-wrapper">
         <button className="mission-back-btn" onClick={() => navigate('/')}>
-          VOLVER AL INICIO
+          ← VOLVER AL INICIO
         </button>
       </div>
     </div>
