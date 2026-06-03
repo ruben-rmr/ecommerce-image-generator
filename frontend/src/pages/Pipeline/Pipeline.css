@@ -114,7 +114,7 @@ body {
 .pl-toolbar {
   position: absolute;
   top: 28px;
-  left: 50%;
+  left: calc(50% + 100px);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -444,13 +444,15 @@ body {
 .pl-panel-collapsible.collapsed { max-height: 0; }
 
 .pl-panel-toggle {
-  width: 28px;
   height: 28px;
+  padding: 0 0.6rem;
+  white-space: nowrap;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--pl-card-bd);
   border-radius: 4px;
   color: var(--pl-text);
   font-size: 0.75rem;
+  font-weight: bold;
   line-height: 1;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
@@ -561,13 +563,29 @@ body {
   flex-direction: column;
   gap: 0.6rem;
   width: 100%;
-  max-height: 230px;
-  overflow-y: auto;
+  overflow: visible;
 }
 .bg-categories {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 1.2rem;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.4rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--pl-card-bd-2) transparent;
+}
+.bg-categories::-webkit-scrollbar { height: 4px; }
+.bg-categories::-webkit-scrollbar-track { background: transparent; }
+.bg-categories::-webkit-scrollbar-thumb { background: var(--pl-card-bd-2); border-radius: 2px; }
+.bg-category {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   flex-direction: column;
-  gap: 0.6rem;
 }
 .bg-category-title {
   font-size: 0.68rem;
@@ -575,14 +593,20 @@ body {
   color: var(--pl-text-mute);
   font-weight: 700;
   margin-bottom: 0.25rem;
+  white-space: nowrap;
 }
 .bg-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   gap: 0.5rem;
+  width: 100%;
 }
 .bg-thumb {
   position: relative;
+  flex: 1;
+  min-width: 70px;
+  max-width: 130px;
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.04);
@@ -905,6 +929,7 @@ body {
 /* ── Responsive ────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .pl-sidebar { width: 200px; left: 24px; }
+  .pl-toolbar { left: calc(50% + 92px); }
   .pl-stage   { left: 244px; right: 60px; }
   .pl-panel   { left: 244px; right: 60px; }
 }

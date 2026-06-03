@@ -704,7 +704,7 @@ export default function Pipeline({ mode = 'full' }) {
             onClick={() => setPanelCollapsed(c => !c)}
             title={panelCollapsed ? 'Expandir panel' : 'Colapsar panel'}
           >
-            {panelCollapsed ? '▲' : '▼'}
+            {panelCollapsed ? 'MOSTRAR PANEL ▲' : 'OCULTAR PANEL ▼'}
           </button>
 
           <button
