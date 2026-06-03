@@ -694,7 +694,7 @@ export default function Pipeline({ mode = 'full' }) {
                 onClick={() => setActiveTab('generate')}
               >
                 <span className="mtab-icon">✦</span>
-                <span>GENERAR FONDO</span>
+                <span>AÑADIR FONDO</span>
               </button>
             )}
           </div>

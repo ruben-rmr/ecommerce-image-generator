@@ -4,7 +4,7 @@ import Pipeline from './pages/Pipeline/Pipeline.jsx'
 import Gallery from './pages/Gallery/Gallery.jsx'
 import Mission from './pages/Mission/Mission.jsx'
 import HowItWorks from './pages/HowItWorks/HowItWorks.jsx'
-import Contact from './pages/Contact/Contact.jsx'
+import LearnMore from './pages/LearnMore/LearnMore.jsx'
 export default function App() {
   const location = useLocation()
   return (
@@ -14,7 +14,7 @@ export default function App() {
       <Route path="/galeria" element={<Gallery />} />
       <Route path="/mision" element={<Mission />} />
       <Route path="/como-funciona" element={<HowItWorks />} />
-      <Route path="/contacto" element={<Contact />} />
+      <Route path="/saber-mas" element={<LearnMore />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

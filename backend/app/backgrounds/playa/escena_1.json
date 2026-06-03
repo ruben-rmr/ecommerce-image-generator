@@ -1,0 +1,7 @@
+{
+  "label": "Playa de arena firme",
+  "ground_y": 0.70,
+  "light_dir": [0.4, -0.6],
+  "reflective": true,
+  "reflective_type": "matte"
+}

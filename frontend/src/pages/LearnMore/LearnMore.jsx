@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import NavBar from '../../components/NavBar/NavBar.jsx'
 import '../Home/Home.css'
-import './Contact.css'
+import './LearnMore.css'
 
 const FAQ = [
   {
@@ -15,11 +15,11 @@ const FAQ = [
   },
   {
     q: '¿Cuánto tiempo tarda en generarse el resultado?',
-    a: 'La segmentación automática suele completarse en menos de 2 segundos. La generación del fondo puede tardar entre 10 y 30 segundos según la complejidad del estilo elegido y la carga del servidor.',
+    a: 'La segmentación automática suele completarse en menos de 2 segundos. La implementación con un fondo puede tardar entre 1 y 3 segundos según la complejidad del estilo elegido y la carga del servidor.',
   },
   {
     q: '¿Puedo usar las imágenes generadas con fines comerciales?',
-    a: 'Sí. Las imágenes resultantes son de tu propiedad y puedes utilizarlas libremente en tiendas online, marketplaces, redes sociales y cualquier otro canal comercial.',
+    a: 'Si las imágenes resultantes son de tu propiedad, sí, y puedes utilizarlas libremente en tiendas online, marketplaces, redes sociales y cualquier otro canal comercial.',
   },
   {
     q: '¿Qué hago si la segmentación no detecta bien mi producto?',
@@ -31,7 +31,7 @@ const FAQ = [
   },
   {
     q: '¿Qué estilos de fondo están disponibles?',
-    a: 'Actualmente los estilos disponibles pueden verse de forma más visual en la "Galería de estilos", accesible desde el menú en la esquina superior izquierda.',
+    a: 'Actualmente los estilos disponibles pueden verse de forma más visual en la "Galería de estilos", accesible desde el menú superior central.',
   },
   {
     q: '¿Cómo puedo contactar con el desarrollador?',
@@ -63,7 +63,7 @@ function AccordionItem({ item, isOpen, onToggle }) {
   )
 }
 
-export default function Contact() {
+export default function LearnMore() {
   const navigate = useNavigate()
   const [openIndex, setOpenIndex] = useState(null)
 
@@ -80,8 +80,8 @@ export default function Contact() {
 
       <NavBar />
 
-      <section className="contact-content">
-        <h1 className="contact-title">Contacto e Información</h1>
+      <section className="learnmore-content">
+        <h1 className="learnmore-title">Saber más: FAQ</h1>
 
         <ul className="faq-list">
           {FAQ.map((item, i) => (

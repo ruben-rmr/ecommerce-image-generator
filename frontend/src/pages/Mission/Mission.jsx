@@ -19,9 +19,9 @@ export default function Mission() {
 
       <section className="mission-content">
         <div className="mission-col">
-          <h2>Misión</h2>
+          <h2>Objetivo / Misión</h2>
           <p>
-            Ayudar a pequeñas y medianas marcas de e-commerce a transformar
+            Ofrecer a particulares y pequeñas marcas de e-commerce una solución sencilla y gratuita para transformar
             fotografías cotidianas en imágenes de producto profesionales,
             haciendo accesible una calidad visual antes reservada a grandes
             estudios. Queremos reducir el tiempo, el coste y la fricción

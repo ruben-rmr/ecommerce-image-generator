@@ -1,4 +1,4 @@
-.contact-content {
+.learnmore-content {
   position: relative;
   z-index: 3;
   max-width: 860px;
@@ -6,7 +6,7 @@
   padding: 2rem 3rem;
 }
 
-.contact-title {
+.learnmore-title {
   font-size: clamp(1.8rem, 3.4vw, 2.8rem);
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -83,11 +83,11 @@
 }
 
 @media (max-width: 720px) {
-  .contact-content {
+  .learnmore-content {
     padding: 1.5rem;
   }
 
-  .contact-title {
+  .learnmore-title {
     margin-bottom: 1.5rem;
   }
 }

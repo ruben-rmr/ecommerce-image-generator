@@ -11,7 +11,7 @@ const LINKS = [
   { to: '/galeria', label: 'Galería' },
   { to: '/mision', label: 'Misión' },
   { to: '/como-funciona', label: '¿Cómo funciona?' },
-  { to: '/contacto', label: 'Contacto' },
+  { to: '/saber-mas', label: 'Saber más' },
 ]
 
 export default function NavBar() {
