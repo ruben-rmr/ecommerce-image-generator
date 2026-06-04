@@ -1,0 +1,177 @@
+<mxfile host="app.diagrams.net" agent="Claude Code">
+  <diagram name="Tecnologias - Ecommerce Image Generator" id="ecommerce-tech">
+    <mxGraphModel dx="786" dy="432" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="user" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=6;" value="USUARIO&#xa;(sube imagen + dibuja bbox)" vertex="1">
+          <mxGeometry height="60" width="190" x="360" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="t-browser" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F0FE;strokeColor=#6c8ebf;fontSize=10;fontStyle=1;" value="🌐 Navegador" vertex="1">
+          <mxGeometry height="40" width="110" x="585" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="grpA" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=14;" value="A" vertex="1">
+          <mxGeometry height="110" width="430" x="160" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="a-fe" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6A8;strokeColor=#D6B656;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=6;" value="FRONTEND (SPA)&#xa;localhost:5173" vertex="1">
+          <mxGeometry height="60" width="160" x="190" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="a-canvas" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6A8;strokeColor=#D6B656;fontSize=10;" value="Canvas bbox&#xa;interactivo + descarga PNG" vertex="1">
+          <mxGeometry height="50" width="175" x="385" y="155" as="geometry" />
+        </mxCell>
+        <mxCell id="t-react" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#282C34;strokeColor=#61DAFB;fontColor=#61DAFB;fontSize=10;fontStyle=1;" value="React 19" vertex="1">
+          <mxGeometry height="34" width="80" x="160" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="t-vite" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1A1A2E;strokeColor=#646CFF;fontColor=#FFD028;fontSize=10;fontStyle=1;" value="Vite 7" vertex="1">
+          <mxGeometry height="34" width="70" x="250" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="t-tw" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0B1120;strokeColor=#38BDF8;fontColor=#38BDF8;fontSize=10;fontStyle=1;" value="Tailwind 4" vertex="1">
+          <mxGeometry height="34" width="90" x="330" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="t-eslint" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1A1A2E;strokeColor=#4B32C3;fontColor=#C9C2F5;fontSize=10;fontStyle=1;" value="ESLint 9" vertex="1">
+          <mxGeometry height="34" width="80" x="430" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="t-node" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F2D1F;strokeColor=#5FA04E;fontColor=#8BC34A;fontSize=10;fontStyle=1;" value="Node.js 18+" vertex="1">
+          <mxGeometry height="34" width="90" x="520" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="grpB" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#82b366;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=14;" value="B" vertex="1">
+          <mxGeometry height="110" width="430" x="160" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="b-api" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82b366;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=6;" value="API REST&#xa;endpoints /segment · /compose · /backgrounds&#xa;localhost:8000" vertex="1">
+          <mxGeometry height="60" width="370" x="190" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="t-fastapi" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#04403B;strokeColor=#05998B;fontColor=#3DD9C4;fontSize=10;fontStyle=1;" value="FastAPI" vertex="1">
+          <mxGeometry height="34" width="80" x="160" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="t-python" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0E2438;strokeColor=#3776AB;fontColor=#FFD43B;fontSize=10;fontStyle=1;" value="Python 3.10+" vertex="1">
+          <mxGeometry height="34" width="100" x="340" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="t-dotenv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2A2A2A;strokeColor=#ECD53F;fontColor=#ECD53F;fontSize=10;fontStyle=1;" value="python-dotenv" vertex="1">
+          <mxGeometry height="34" width="110" x="450" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="grpC" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=14;" value="C" vertex="1">
+          <mxGeometry height="150" width="290" x="160" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="c-title" parent="1" style="text;html=1;align=left;fontStyle=1;fontSize=11;" value="SEGMENTACIÓN" vertex="1">
+          <mxGeometry height="20" width="200" x="190" y="516" as="geometry" />
+        </mxCell>
+        <mxCell id="t-uvicorn" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1B2631;strokeColor=#2C3E50;fontColor=#AEB6BF;fontSize=10;fontStyle=1;" value="Uvicorn" vertex="1">
+          <mxGeometry height="34" width="80" x="250" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="c-sam" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6A8;strokeColor=#D6B656;fontSize=10;fontStyle=1;dashed=1;verticalAlign=top;spacingTop=6;" value="FastSAM-s (inferencia)&lt;br&gt;[ Scalable / ML ]" vertex="1">
+          <mxGeometry height="46" width="230" x="190" y="542" as="geometry" />
+        </mxCell>
+        <mxCell id="c-seg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6A8;strokeColor=#D6B656;fontSize=10;" value="segmentation.py + utils.py&#xa;máscara RGBA · Canny bbox" vertex="1">
+          <mxGeometry height="46" width="230" x="190" y="598" as="geometry" />
+        </mxCell>
+        <mxCell id="t-ultra" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0D1117;strokeColor=#7B61FF;fontColor=#C9B8FF;fontSize=9;fontStyle=1;" value="ultralytics" vertex="1">
+          <mxGeometry height="32" width="90" x="460" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="t-torch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2A0F08;strokeColor=#EE4C2C;fontColor=#FF7A5C;fontSize=9;fontStyle=1;" value="PyTorch" vertex="1">
+          <mxGeometry height="32" width="90" x="460" y="548" as="geometry" />
+        </mxCell>
+        <mxCell id="t-opencv1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0E0E2C;strokeColor=#5C3EE8;fontColor=#9B86FF;fontSize=9;fontStyle=1;" value="OpenCV" vertex="1">
+          <mxGeometry height="32" width="90" x="460" y="586" as="geometry" />
+        </mxCell>
+        <mxCell id="t-numpy1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#04141F;strokeColor=#4D77CF;fontColor=#7FB1E8;fontSize=9;fontStyle=1;" value="NumPy" vertex="1">
+          <mxGeometry height="32" width="90" x="460" y="624" as="geometry" />
+        </mxCell>
+        <mxCell id="grpD" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=14;" value="D" vertex="1">
+          <mxGeometry height="150" width="290" x="580" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="d-title" parent="1" style="text;html=1;align=left;fontStyle=1;fontSize=11;" value="COMPOSICIÓN LOCAL" vertex="1">
+          <mxGeometry height="20" width="220" x="610" y="516" as="geometry" />
+        </mxCell>
+        <mxCell id="d-studio" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6A8;strokeColor=#D6B656;fontSize=10;" value="studio.py / scene.py&#xa;fondo procedural · catálogo + armonización" vertex="1">
+          <mxGeometry height="46" width="230" x="610" y="542" as="geometry" />
+        </mxCell>
+        <mxCell id="d-helpers" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6A8;strokeColor=#D6B656;fontSize=9;" value="harmonization · placement · shadows&#xa;reflections · relighting · edges" vertex="1">
+          <mxGeometry height="46" width="230" x="610" y="598" as="geometry" />
+        </mxCell>
+        <mxCell id="t-pillow" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#13111F;strokeColor=#6A5ACD;fontColor=#B0A4F5;fontSize=9;fontStyle=1;" value="Pillow (PIL)" vertex="1">
+          <mxGeometry height="32" width="100" x="580" y="668" as="geometry" />
+        </mxCell>
+        <mxCell id="t-opencv2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0E0E2C;strokeColor=#5C3EE8;fontColor=#9B86FF;fontSize=9;fontStyle=1;" value="OpenCV" vertex="1">
+          <mxGeometry height="32" width="80" x="690" y="668" as="geometry" />
+        </mxCell>
+        <mxCell id="t-numpy2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#04141F;strokeColor=#4D77CF;fontColor=#7FB1E8;fontSize=9;fontStyle=1;" value="NumPy" vertex="1">
+          <mxGeometry height="32" width="80" x="780" y="668" as="geometry" />
+        </mxCell>
+        <mxCell id="grpE" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;verticalAlign=top;align=left;spacingLeft=8;spacingTop=4;fontStyle=1;fontSize=14;" value="E" vertex="1">
+          <mxGeometry height="100" width="710" x="160" y="710" as="geometry" />
+        </mxCell>
+        <mxCell id="e-title" parent="1" style="text;html=1;align=left;fontStyle=1;fontSize=11;" value="DATA STORE — sistema de ficheros local" vertex="1">
+          <mxGeometry height="20" width="320" x="190" y="716" as="geometry" />
+        </mxCell>
+        <mxCell id="e-model" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1A5276;strokeColor=#0B2E40;fontColor=#FFFFFF;fontSize=10;fontStyle=1;" value="models/FastSAM-s.pt" vertex="1">
+          <mxGeometry height="50" width="180" x="190" y="742" as="geometry" />
+        </mxCell>
+        <mxCell id="e-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1A5276;strokeColor=#0B2E40;fontColor=#FFFFFF;fontSize=10;fontStyle=1;" value="backgrounds/ (catálogo)" vertex="1">
+          <mxGeometry height="50" width="190" x="390" y="742" as="geometry" />
+        </mxCell>
+        <mxCell id="e-debug" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1A5276;strokeColor=#0B2E40;fontColor=#FFFFFF;fontSize=10;fontStyle=1;" value="debug_segmentation/ · debug_auto/" vertex="1">
+          <mxGeometry height="50" width="250" x="600" y="742" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" edge="1" parent="1" source="user" style="endArrow=classic;startArrow=classic;html=1;fontSize=9;strokeColor=#333333;" target="a-fe" value="HTTP / fetch (CORS)">
+          <mxGeometry relative="1" x="-0.148" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f3" edge="1" parent="1" source="grpB" style="endArrow=classic;html=1;strokeColor=#333333;exitX=0.3;exitY=1;entryX=0.5;entryY=0;" target="grpC" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" edge="1" parent="1" source="grpA" style="endArrow=classic;startArrow=classic;html=1;fontSize=9;strokeColor=#333333;" target="grpB" value="multipart/form-data">
+          <mxGeometry relative="1" x="0.3333" y="5" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f4" edge="1" parent="1" source="grpB" style="endArrow=classic;html=1;strokeColor=#333333;exitX=0.7;exitY=1;entryX=0.5;entryY=0;" target="grpD" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f5" edge="1" parent="1" source="e-model" style="endArrow=classic;html=1;fontSize=9;strokeColor=#1A5276;" target="c-sam" value="carga modelo">
+          <mxGeometry relative="1" x="-0.0523" y="-8" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f6" edge="1" parent="1" source="e-bg" style="endArrow=classic;html=1;fontSize=9;strokeColor=#1A5276;" target="grpD" value="lee fondos">
+          <mxGeometry relative="1" x="-0.4279" y="-2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg-box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fontStyle=1;fontSize=10;" value="LEYENDA" vertex="1">
+          <mxGeometry height="150" width="280" x="160" y="840" as="geometry" />
+        </mxCell>
+        <mxCell id="leg1c" parent="1" style="rounded=1;fillColor=#FFE6A8;strokeColor=#D6B656;" vertex="1">
+          <mxGeometry height="14" width="22" x="172" y="868" as="geometry" />
+        </mxCell>
+        <mxCell id="leg1t" parent="1" style="text;html=1;align=left;fontSize=9;" value="Application component (Front, ML, composición)" vertex="1">
+          <mxGeometry height="18" width="240" x="200" y="866" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2c" parent="1" style="rounded=1;fillColor=#D5E8D4;strokeColor=#82b366;" vertex="1">
+          <mxGeometry height="14" width="22" x="172" y="890" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2t" parent="1" style="text;html=1;align=left;fontSize=9;" value="Infrastructure services (FastAPI + Uvicorn)" vertex="1">
+          <mxGeometry height="18" width="240" x="200" y="888" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3c" parent="1" style="rounded=1;fillColor=#1A5276;strokeColor=#0B2E40;" vertex="1">
+          <mxGeometry height="14" width="22" x="172" y="912" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3t" parent="1" style="text;html=1;align=left;fontSize=9;" value="Data store (sistema de ficheros local)" vertex="1">
+          <mxGeometry height="18" width="240" x="200" y="910" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4c" parent="1" style="rounded=1;fillColor=#FFE6A8;strokeColor=#D6B656;dashed=1;" vertex="1">
+          <mxGeometry height="14" width="22" x="172" y="934" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4t" parent="1" style="text;html=1;align=left;fontSize=9;" value="Scalable / ML (FastSAM · PyTorch)" vertex="1">
+          <mxGeometry height="18" width="240" x="200" y="932" as="geometry" />
+        </mxCell>
+        <mxCell id="leg5c" parent="1" style="rounded=1;fillColor=#0D1117;strokeColor=#7B61FF;" vertex="1">
+          <mxGeometry height="14" width="22" x="172" y="956" as="geometry" />
+        </mxCell>
+        <mxCell id="leg5t" parent="1" style="text;html=1;align=left;fontSize=9;" value="Badge = tecnología / herramienta del subsistema" vertex="1">
+          <mxGeometry height="18" width="260" x="200" y="954" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
