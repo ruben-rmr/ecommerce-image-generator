@@ -48,3 +48,7 @@ frontend/*.ntvs*
 frontend/*.njsproj
 frontend/*.sln
 frontend/*.sw?
+
+# Archivos .drawio (realizados para esquemas)
+CLAUDE.md
+*.drawio
