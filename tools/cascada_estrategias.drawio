@@ -1,0 +1,116 @@
+<mxfile host="app.diagrams.net" agent="Claude Code" version="24.0.0">
+  <diagram name="Cascada 5 estrategias" id="cascada-mask">
+    <mxGraphModel dx="1100" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1500" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ENTRADA -->
+        <mxCell id="start" value="Máscaras candidatas de FastSAM&#10;(bbox en coordenadas del lienzo)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="20" width="290" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ===== ESTRATEGIA 1 ===== -->
+        <mxCell id="s1" value="① Unión de fragmentos&#10;(estrategia preferente)&#10;&#10;OR lógico de todas las máscaras ≥60% dentro del bbox.&#10;Descarta antes las que cubren &gt;55% del lienzo (escena/fondo).&#10;Reconstruye el objeto a partir de sus piezas." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="120" y="110" width="320" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="v1" value="_mask_covers_bbox&#10;cobertura ≥ 20%?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="180" y="250" width="200" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ===== ESTRATEGIA 2 ===== -->
+        <mxCell id="s2" value="② Box prompt nativo&#10;&#10;FastSAMPrompt.box_prompt de ultralytics&#10;(API oficial de selección por caja)." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="120" y="380" width="320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="v2" value="_mask_covers_bbox&#10;cobertura ≥ 15%?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="180" y="490" width="200" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ===== ESTRATEGIA 3 ===== -->
+        <mxCell id="s3" value="③ Box prompt por IoU&#10;&#10;Selección manual de la máscara individual&#10;con mayor Intersección-sobre-Unión (IoU)&#10;respecto al recuadro." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="120" y="620" width="320" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="v3" value="_mask_covers_bbox&#10;cobertura ≥ 15%?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="180" y="740" width="200" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ===== ESTRATEGIA 4 ===== -->
+        <mxCell id="s4" value="④ Point prompt&#10;&#10;Escoge la máscara más pequeña (la más específica)&#10;que contiene el centro del bbox." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="120" y="870" width="320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="v4" value="_mask_covers_bbox&#10;cobertura ≥ 20%?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="180" y="980" width="200" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ===== ESTRATEGIA 5 ===== -->
+        <mxCell id="s5" value="⑤ Score compuesto (último recurso)&#10;&#10;Puntúa cada máscara combinando cobertura, solapamiento,&#10;presencia del centroide y un bonus guiado por bordes:&#10;detecta bordes reales con Canny dentro del bbox y premia&#10;las máscaras cuyo contorno se alinea con ellos (30% del peso).&#10;&#10;score = cobertura · solapamiento^0.5 · bonus_centroide · (0.7 + 0.3 · score_bordes)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1110" width="360" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- ===== SALIDA ÉXITO ===== -->
+        <mxCell id="ok" value="✓ Máscara seleccionada&#10;→ postprocesado RGBA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="980" width="200" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ============ ARISTAS ============ -->
+        <!-- entrada -> s1 -->
+        <mxCell id="e0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="start" target="s1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- s1 -> v1 -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="s1" target="v1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- s2 -> v2 -->
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="s2" target="v2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- s3 -> v3 -->
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="s3" target="v3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- s4 -> v4 -->
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="s4" target="v4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- FALLBACK: v1 -> s2 -->
+        <mxCell id="f1" value="No (fallback)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;fontColor=#b85450;" edge="1" parent="1" source="v1" target="s2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- v2 -> s3 -->
+        <mxCell id="f2" value="No (fallback)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;fontColor=#b85450;" edge="1" parent="1" source="v2" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- v3 -> s4 -->
+        <mxCell id="f3" value="No (fallback)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;fontColor=#b85450;" edge="1" parent="1" source="v3" target="s4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- v4 -> s5 -->
+        <mxCell id="f4" value="No (fallback)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;fontColor=#b85450;" edge="1" parent="1" source="v4" target="s5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- SÍ -> OK -->
+        <mxCell id="ok1" value="Sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#82b366;fontColor=#3a7d34;" edge="1" parent="1" source="v1" target="ok">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ok2" value="Sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#82b366;fontColor=#3a7d34;" edge="1" parent="1" source="v2" target="ok">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ok3" value="Sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#82b366;fontColor=#3a7d34;" edge="1" parent="1" source="v3" target="ok">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ok4" value="Sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#82b366;fontColor=#3a7d34;" edge="1" parent="1" source="v4" target="ok">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- s5 -> OK (siempre devuelve algo) -->
+        <mxCell id="ok5" value="mejor score" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#82b366;fontColor=#3a7d34;" edge="1" parent="1" source="s5" target="ok">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

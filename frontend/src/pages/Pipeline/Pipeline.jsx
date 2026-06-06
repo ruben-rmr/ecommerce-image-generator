@@ -524,14 +524,14 @@ export default function Pipeline({ mode = 'full' }) {
           <button className="zoom-btn" onClick={handleZoomOut} title="Alejar">−</button>
         </div>
 
-        {/* Botón descargar */}
-        {(genResult || (segResult && mode === 'segment')) && !isProcessing && (
+        {/* Botón descargar: imagen generada o, si solo está la segmentación, la segmentada */}
+        {(genResult || segResult) && !isProcessing && (
           <a
             className="pl-download"
             href={genResult || segResult}
             download={genResult ? 'generado.png' : 'segmentado.png'}
           >
-            DESCARGAR PNG
+            {genResult ? 'DESCARGAR PNG' : 'DESCARGAR IMAGEN'}
           </a>
         )}
       </main>
