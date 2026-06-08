@@ -1,5 +1,6 @@
 import io
 import os
+import time
 import cv2
 import numpy as np
 from pathlib import Path
@@ -241,6 +242,7 @@ def run_fastsam(
     iou: float = 0.9,
     debug: bool = False,
     debug_imgs: dict | None = None,
+    timings: dict | None = None,
 ) -> np.ndarray | None:
     """
     Ejecuta FastSAM sobre el canvas preprocesado y selecciona la mejor máscara.
@@ -268,6 +270,7 @@ def run_fastsam(
           f"bbox_canvas={cb}, point=({pt_x},{pt_y})")
 
     # imgsz = canvas_size porque ya preprocesamos nosotros
+    _t_infer = time.perf_counter()
     results = model(
         canvas,
         device="cpu",
@@ -277,6 +280,8 @@ def run_fastsam(
         iou=iou,
         verbose=False,
     )
+    if timings is not None:
+        timings["inference_ms"] = (time.perf_counter() - _t_infer) * 1000.0
 
     if not results or len(results) == 0 or results[0].masks is None:
         print("⚠️  FastSAM no generó máscaras")
@@ -883,6 +888,8 @@ def segment_with_fastsam(
     pil_image: Image.Image,
     bbox: list[int],
     debug: bool = False,
+    target_size: int = 1024,
+    timings: dict | None = None,
 ) -> bytes:
     """
     Pipeline completo de segmentación con preprocesado controlado.
@@ -897,6 +904,12 @@ def segment_with_fastsam(
         pil_image: Imagen PIL (cualquier modo).
         bbox: [x1, y1, x2, y2] en píxeles absolutos de la imagen original.
         debug: Si True, imprime estadísticas de todas las máscaras.
+        target_size: Lado del canvas cuadrado de trabajo (letterbox). El canvas
+            real se satura en min(target_size, lado_mayor_original), por lo que
+            subir este valor por encima del lado mayor de la imagen no cambia la
+            inferencia. Útil para medir latencia a distintas resoluciones.
+        timings: Si se pasa un dict, se rellenan las claves preprocess_ms,
+            inference_ms, postprocess_ms y total_ms con la latencia de cada fase.
     Returns:
         bytes de un PNG con fondo transparente.
     """
@@ -906,8 +919,13 @@ def segment_with_fastsam(
 
     print(f"📡 Pipeline FastSAM — bbox={bbox} sobre {w}×{h}")
 
+    _local_timings: dict = {} if timings is None else timings
+    _t_total = time.perf_counter()
+
     # ── 1. Preprocesado ──────────────────────────────────────────────────
-    canvas, meta = preprocess_image(img_np, target_size=1024)
+    _t_pre = time.perf_counter()
+    canvas, meta = preprocess_image(img_np, target_size=target_size)
+    _local_timings["preprocess_ms"] = (time.perf_counter() - _t_pre) * 1000.0
     print(f"   Canvas: {meta['canvas_size']}×{meta['canvas_size']}, "
           f"scale={meta['scale']:.3f}, pad=({meta['pad_x']},{meta['pad_y']})")
 
@@ -924,7 +942,15 @@ def segment_with_fastsam(
     }
 
     # ── 2. Inferencia + selección de máscara ─────────────────────────────
-    mask_canvas = run_fastsam(canvas, meta, bbox, debug=debug, debug_imgs=debug_imgs)
+    # run_fastsam mide la inferencia pura del modelo en timings["inference_ms"];
+    # el resto del tiempo de esta llamada (selección de máscara) se contabiliza
+    # como postprocesado.
+    _t_run = time.perf_counter()
+    mask_canvas = run_fastsam(canvas, meta, bbox, debug=debug,
+                              debug_imgs=debug_imgs, timings=_local_timings)
+    _run_total_ms = (time.perf_counter() - _t_run) * 1000.0
+    _selection_ms = _run_total_ms - _local_timings.get("inference_ms", 0.0)
+    _t_post = time.perf_counter()
 
     # Fallback: si no se obtuvo máscara, recorte rectangular
     if mask_canvas is None:
@@ -971,5 +997,18 @@ def segment_with_fastsam(
 
     buf = io.BytesIO()
     result.save(buf, format="PNG")
+
+    # postprocesado = selección de máscara (parte de run_fastsam) + revertir
+    # padding + limpieza + composición RGBA.
+    _local_timings["postprocess_ms"] = _selection_ms + (time.perf_counter() - _t_post) * 1000.0
+    _local_timings["total_ms"] = (time.perf_counter() - _t_total) * 1000.0
+    print(
+        f"⏱️  Latencia — pre={_local_timings['preprocess_ms']:.1f} ms | "
+        f"infer={_local_timings.get('inference_ms', 0.0):.1f} ms | "
+        f"post={_local_timings['postprocess_ms']:.1f} ms | "
+        f"total={_local_timings['total_ms']:.1f} ms "
+        f"(canvas={meta['canvas_size']}px)"
+    )
+
     print(f"✅ Segmentación completada — {w}×{h}")
     return buf.getvalue()

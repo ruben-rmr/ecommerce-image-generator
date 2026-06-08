@@ -10,7 +10,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from segmentation import segment_with_fastsam
 from utils import detectar_bbox_canny
@@ -50,7 +50,27 @@ app.add_middleware(
 # UTILIDADES
 # ----------------------------------------------------------------------
 def _read_image(contents: bytes) -> Image.Image:
-    image = Image.open(io.BytesIO(contents))
+    """Abre la imagen subida y valida que sea un formato soportado y no esté corrupta.
+
+    Lanza HTTPException(400) con un mensaje claro si el archivo está vacío,
+    tiene un formato no válido o sus datos están dañados.
+    """
+    if not contents:
+        raise HTTPException(status_code=400,
+                            detail="El archivo está vacío. Sube una imagen válida.")
+    try:
+        image = Image.open(io.BytesIO(contents))
+        # Image.open es perezoso: forzar la decodificación para detectar
+        # archivos truncados o con datos corruptos.
+        image.load()
+    except UnidentifiedImageError:
+        raise HTTPException(
+            status_code=400,
+            detail="Formato de archivo no válido. Sube una imagen (JPG, PNG, WEBP…).")
+    except (OSError, SyntaxError, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail="La imagen está dañada o incompleta y no se puede procesar.")
     image = ImageOps.exif_transpose(image)
     return image
 
@@ -167,6 +187,8 @@ async def segment_image_auto(
         result_png = await asyncio.to_thread(segment_with_fastsam, image, bbox)
         return Response(content=result_png, media_type="image/png")
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ Error en segmentación auto: {e}")
         traceback.print_exc()
