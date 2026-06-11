@@ -1,10 +1,17 @@
+"""
+Prueba rápida de compose_studio sin levantar el servidor ni cargar FastSAM.
+
+Genera un objeto RGBA sintético, lo compone a dos escalas y guarda el resultado, imprimiendo
+de paso el tamaño del PNG y la latencia. Sirve para detectar regresiones obvias en el modo
+estudio. Ejecutar desde backend/ con el venv activado: python _smoke_studio.py
+"""
 import io
 import time
 import numpy as np
 from PIL import Image
 from app.composition.studio import compose_studio
 
-# Objeto RGBA sintetico (botella alta/estrecha) -> PNG bytes.
+# Objeto RGBA sintético (botella alta/estrecha) -> PNG bytes.
 oh, ow = 600, 160
 rgba = np.zeros((oh, ow, 4), np.uint8)
 rgba[:, 40:120, :3] = (180, 60, 60)

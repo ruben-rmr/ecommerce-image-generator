@@ -1,13 +1,13 @@
 """
 Genera la figura didáctica del letterbox: tres viñetas anotadas que muestran
-cómo `preprocess_image()` transforma la imagen y remapea el bbox.
+cómo "preprocess_image()" transforma la imagen y remapea el bbox.
 
   (a) imagen original con su bbox
   (b) imagen escalada por el lado mayor (sin padding), bbox escalado
   (c) lienzo cuadrado con relleno gris 114 y el bbox ya remapeado
 
-Anota scale, pad_x y pad_y — los valores que guarda `meta` y que luego usa
-`postprocess_mask()` para revertir el preprocesado.
+Anota scale, pad_x y pad_y — los valores que guarda "meta" y que luego usa
+postprocess_mask() para revertir el preprocesado.
 
 Ejecutar desde backend/ (mismos imports planos que el resto de scripts sueltos):
 
@@ -79,7 +79,7 @@ def build_figure(image_path, bbox_args):
     h, w = img_np.shape[:2]
     bbox = _parse_bbox(bbox_args, w, h)
 
-    # ── Pipeline real: una sola fuente de verdad para los valores ──────────
+    # Pipeline real: una sola fuente de verdad para los valores.
     canvas, meta = preprocess_image(img_np, target_size=1024)
     scale = meta["scale"]
     pad_x, pad_y = meta["pad_x"], meta["pad_y"]
@@ -104,7 +104,7 @@ def build_figure(image_path, bbox_args):
     cv2.line(panel_c, (pad_x, 0), (pad_x, meta["canvas_size"]), ARROW, 1, cv2.LINE_AA)
     cv2.line(panel_c, (pad_x + new_w, 0), (pad_x + new_w, meta["canvas_size"]), ARROW, 1, cv2.LINE_AA)
 
-    # ── Normalizar a una altura común para alinear las viñetas ─────────────
+    # Normalizamos a una altura común para alinear las viñetas.
     target = 460
     def _fit(p):
         ph, pw = p.shape[:2]
@@ -115,7 +115,7 @@ def build_figure(image_path, bbox_args):
     panel_b = _label(_fit(panel_b), f"(b) escalada  {new_w}x{new_h}  scale={scale:.3f}")
     panel_c = _label(_fit(panel_c), f"(c) canvas {meta['canvas_size']}^2  pad=({pad_x},{pad_y})")
 
-    # ── Montaje horizontal con separadores ─────────────────────────────────
+    # Montaje horizontal con separadores.
     H = max(p.shape[0] for p in (panel_a, panel_b, panel_c))
     panels = [_pad_to_height(p, H) for p in (panel_a, panel_b, panel_c)]
     gap = np.full((H, 24, 3), PANEL_BG, np.uint8)
@@ -124,7 +124,7 @@ def build_figure(image_path, bbox_args):
 
     fig = np.hstack([panels[0], arrow_col, panels[1], arrow_col, panels[2]])
 
-    # ── Pie con los valores de meta ────────────────────────────────────────
+    # Pie con los valores de meta.
     footer_h = 40
     fig_full = np.full((fig.shape[0] + footer_h, fig.shape[1], 3), PANEL_BG, np.uint8)
     fig_full[:fig.shape[0], :] = fig

@@ -1,7 +1,13 @@
+"""
+Prueba rápida de cast_shadow (sombra proyectada) sobre un objeto sintético alto y estrecho,
+que es el peor caso de recorte. Comprueba que la sombra no se recorta contra la caja del
+objeto: imprime el rango de filas/columnas con sombra, la opacidad en la base y en la punta, y
+el ancho proyectado. Ejecutar desde backend/ con el venv activado: python _smoke_cast.py
+"""
 import numpy as np
 from app.composition.shadows import cast_shadow
 
-# Objeto sintetico alto/estrecho (peor caso de recorte): barra vertical.
+# Objeto sintético alto/estrecho (peor caso de recorte): barra vertical.
 W, H = 1024, 1024
 ow, oh = 120, 600
 alpha = np.zeros((oh, ow), np.uint8)

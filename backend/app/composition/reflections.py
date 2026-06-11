@@ -1,6 +1,6 @@
 """
-Optional vertical reflection for shiny / reflective floors (marble, water).
-Pure pixel mirror with a vertical alpha fade. No raytracing, no IA.
+Reflejo vertical opcional para suelos brillantes/reflectantes (mármol, agua).
+Es un simple espejado de píxeles con un degradado de alfa vertical. Sin raytracing ni IA.
 """
 
 import cv2
@@ -11,18 +11,17 @@ def make_reflection(rgba: np.ndarray,
                     fade: float = 0.35,
                     blur_sigma: float = 1.0) -> np.ndarray:
     """
-    Build a flipped, alpha-faded copy of the object suitable for placing
-    directly under it on the canvas. Returns HxWx4 uint8 RGBA, same size as
-    input.
+    Crea una copia volteada y con el alfa atenuado del objeto, lista para pegarse justo
+    debajo de él en el lienzo. Devuelve un RGBA uint8 HxWx4 del mismo tamaño que la entrada.
 
-    `fade` is the alpha at the top of the reflection (closest to the object);
-    decays linearly to 0 at the bottom. `blur_sigma` simulates micro-roughness
-    on the floor (tiny for glossy, larger for matte).
+    `fade` es el alfa en la parte alta del reflejo (la más cercana al objeto), que decae
+    linealmente hasta 0 en la parte baja. `blur_sigma` simula la micro-rugosidad del suelo
+    (pequeño para suelos pulidos, mayor para suelos mate).
     """
     if rgba.ndim != 3 or rgba.shape[2] != 4:
-        raise ValueError("make_reflection expects HxWx4 RGBA")
+        raise ValueError("make_reflection espera un RGBA HxWx4")
 
-    flipped = cv2.flip(rgba, 0)  # vertical flip
+    flipped = cv2.flip(rgba, 0)  # volteo vertical
     rgb = flipped[..., :3].astype(np.float32)
     alpha = flipped[..., 3].astype(np.float32)
 
@@ -31,7 +30,7 @@ def make_reflection(rgba: np.ndarray,
     alpha = alpha * fade_curve
 
     if blur_sigma > 0.05:
-        # Slight horizontal blur dominates for a believable floor sheen.
+        # Domina el desenfoque horizontal para un brillo de suelo más creíble.
         rgb = cv2.GaussianBlur(rgb, (0, 0), sigmaX=blur_sigma * 4.0, sigmaY=blur_sigma)
         alpha = cv2.GaussianBlur(alpha, (0, 0), sigmaX=blur_sigma * 4.0, sigmaY=blur_sigma)
 
@@ -45,11 +44,11 @@ def make_reflection(rgba: np.ndarray,
 def reflection_top_left(obj_top_left: tuple[int, int], obj_size: tuple[int, int],
                         feet_y_local: int) -> tuple[int, int]:
     """
-    Compute where to paste the reflection so its top edge sits at the object's
-    feet (`feet_y_local` is the y of the lowest object pixel in OBJECT-local
-    coordinates).
+    Calcula dónde pegar el reflejo para que su borde superior quede a la altura de los pies
+    del objeto. `feet_y_local` es la y del píxel más bajo del objeto en coordenadas LOCALES
+    del objeto.
     """
     x, y = obj_top_left
     ow, oh = obj_size
-    # The flipped image's "feet" are at top; we want them aligned at y + feet_y_local.
+    # Tras el volteo, los "pies" del objeto quedan arriba; los alineamos en y + feet_y_local.
     return (x, y + feet_y_local + 1)

@@ -1,11 +1,14 @@
-"""Grafica los tiempos de segmentacion por resolucion.
+"""Grafica los tiempos de segmentación por resolución.
+
+Los datos están escritos a mano (copiados de la salida de _bench_segmentation.py), así que
+para regenerar el gráfico basta con actualizar la lista `datos`.
 
 Uso:  python _plot_bench.py
 Genera 'bench_segmentation.png' en el mismo directorio.
 """
 import matplotlib.pyplot as plt
 
-# (resolucion, preprocesado, inferencia, post-procesado, total) en ms
+# (resolución, preprocesado, inferencia, post-procesado, total) en ms
 datos = [
     ("640px",  0.4, 148.8,  210.4,  360.1),
     ("960px",  1.4, 384.9,  494.5,  881.7),
@@ -33,9 +36,9 @@ ax.bar(resoluciones, postproceso, bottom=base, label="Post-procesado")
 for x, t in zip(resoluciones, total):
     ax.text(x, t + 20, f"{t:.0f}", ha="center", va="bottom", fontsize=9)
 
-ax.set_xlabel("Resolucion")
+ax.set_xlabel("Resolución")
 ax.set_ylabel("Tiempo (ms)")
-ax.set_title("Tiempos de segmentacion por resolucion")
+ax.set_title("Tiempos de segmentación por resolución")
 ax.legend()
 ax.grid(axis="y", alpha=0.3)
 fig.tight_layout()

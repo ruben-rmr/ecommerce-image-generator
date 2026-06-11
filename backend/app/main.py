@@ -29,9 +29,9 @@ async def lifespan(app: FastAPI):
     _get_model()
     # Escanear catálogo de fondos locales.
     catalog.scan()
-    print("🚀 Servidor iniciado (FastSAM local + composición local)")
+    print("Servidor iniciado (FastSAM local + composición local)")
     yield
-    print("🛑 Servidor apagándose...")
+    print("Servidor apagándose...")
 
 
 app = FastAPI(lifespan=lifespan)
@@ -114,10 +114,10 @@ def read_root():
 
 
 # ----------------------------------------------------------------------
-# SEGMENTACIÓN — sin cambios funcionales
+# SEGMENTACIÓN
 # ----------------------------------------------------------------------
 def _resize_for_segmentation(image: Image.Image, max_side: int | None) -> Image.Image:
-    """Redimensiona manteniendo aspect ratio si algún lado supera max_side."""
+    """Redimensiona manteniendo la relación de aspecto si algún lado supera max_side."""
     if max_side is None:
         return image
     w, h = image.size
@@ -125,7 +125,7 @@ def _resize_for_segmentation(image: Image.Image, max_side: int | None) -> Image.
         return image
     scale = max_side / max(w, h)
     new_w, new_h = int(w * scale), int(h * scale)
-    print(f"🔲 Resize: {w}×{h} → {new_w}×{new_h} (max_side={max_side})")
+    print(f"Resize: {w}x{h} -> {new_w}x{new_h} (max_side={max_side})")
     return image.resize((new_w, new_h), Image.LANCZOS)
 
 
@@ -158,8 +158,8 @@ async def segment_image_bbox(
         bx1, bx2 = min(px1, px2), max(px1, px2)
         by1, by2 = min(py1, py2), max(py1, py2)
 
-        print(f"📦 Bbox manual: rel=[{rel_x1:.3f},{rel_y1:.3f},{rel_x2:.3f},{rel_y2:.3f}] "
-              f"→ px=[{bx1},{by1},{bx2},{by2}] sobre {w}×{h}")
+        print(f"Bbox manual: rel=[{rel_x1:.3f},{rel_y1:.3f},{rel_x2:.3f},{rel_y2:.3f}] "
+              f"-> px=[{bx1},{by1},{bx2},{by2}] sobre {w}x{h}")
 
         result_png = await asyncio.to_thread(segment_with_fastsam, image, [bx1, by1, bx2, by2])
         return Response(content=result_png, media_type="image/png")
@@ -167,7 +167,7 @@ async def segment_image_bbox(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error en segmentación bbox: {e}")
+        print(f"Error en segmentación bbox: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -177,20 +177,20 @@ async def segment_image_auto(
     file: UploadFile = File(...),
     max_side: int | None = Form(None),
 ):
-    """Segmentación automática (Canny → bbox → FastSAM)."""
+    """Segmentación automática (Canny -> bbox -> FastSAM)."""
     try:
         contents = await file.read()
         image = _read_image(contents)
         image = _resize_for_segmentation(image, max_side)
         bbox = await asyncio.to_thread(detectar_bbox_canny, image)
-        print(f"📦 Bbox automático (Canny): {bbox} sobre {image.size[0]}×{image.size[1]}")
+        print(f"Bbox automático (Canny): {bbox} sobre {image.size[0]}x{image.size[1]}")
         result_png = await asyncio.to_thread(segment_with_fastsam, image, bbox)
         return Response(content=result_png, media_type="image/png")
 
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error en segmentación auto: {e}")
+        print(f"Error en segmentación auto: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -230,7 +230,7 @@ async def compose_studio_endpoint(
         return Response(content=result_png, media_type="image/png")
 
     except Exception as e:
-        print(f"❌ Error en compose/studio: {e}")
+        print(f"Error en compose/studio: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -286,7 +286,7 @@ async def compose_scene_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error en compose/scene: {e}")
+        print(f"Error en compose/scene: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 

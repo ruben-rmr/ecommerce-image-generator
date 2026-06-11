@@ -1,11 +1,10 @@
 import NavBar from '../../components/NavBar/NavBar.jsx'
 import './Home.css'
 
-// ── Imágenes (rellena con tus rutas) ─────────────────────────────────
-// Coloca tus archivos en /frontend/public/ y referencia con "/archivo.jpg"
+// Imágenes: coloca tus archivos en /frontend/public/ y referéncialos como "/archivo.jpg".
 const HERO_IMAGE_URL = ''   // p.ej. '/dress.png'
 
-// ── Textos editables ─────────────────────────────────────────────────
+// Textos editables de la portada.
 const BRAND_TITLE = 'Photify'
 const BRAND_TAGLINE = 'DE FOTO A IMAGEN PROFESIONAL'
 const HERO_LEAD = ['PROFESIONALIZA', 'UNA IMAGEN', 'FÁCILMENTE', 'EN SEGUNDOS']

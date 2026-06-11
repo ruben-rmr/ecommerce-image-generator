@@ -68,10 +68,10 @@ def main():
 
     if args.image:
         base = Image.open(args.image).convert("RGB")
-        print(f"Imagen base: {args.image} ({base.size[0]}×{base.size[1]})")
+        print(f"Imagen base: {args.image} ({base.size[0]}x{base.size[1]})")
     else:
         base = _build_synthetic(2560)
-        print("Imagen base: sintética 2560×2560")
+        print("Imagen base: sintética 2560x2560")
 
     print(f"Repeticiones por resolución: {args.repeats}\n")
 
@@ -96,7 +96,7 @@ def main():
         row["res"] = res
         rows.append(row)
 
-    # ── Tabla de resultados ──────────────────────────────────────────────
+    # Tabla de resultados.
     print("\n" + "=" * 78)
     print("RESULTADOS (media de {} repeticiones, ms)".format(args.repeats))
     print("=" * 78)

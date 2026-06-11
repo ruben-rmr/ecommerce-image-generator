@@ -1,8 +1,8 @@
 """
-Shadow synthesis: contact, drop, fake ambient occlusion, scene-directional shadow.
+Síntesis de sombras: contacto, proyectada, oclusión ambiental falsa y sombra direccional de escena.
 
-All shadows are rendered as a single-channel "shadow alpha" (HxW float32 in [0..1])
-that the caller multiplies onto the canvas with a chosen color/opacity.
+Todas las sombras se generan como un único canal de "alfa de sombra" (HxW float32 en [0..1])
+que quien la usa multiplica sobre el lienzo con el color y la opacidad que elija.
 """
 
 import cv2
@@ -15,10 +15,9 @@ def _alpha_binary(alpha: np.ndarray, threshold: int = 16) -> np.ndarray:
 
 def _vertical_fade_ramp(shape: tuple[int, int], fade: float) -> np.ndarray:
     """
-    Vertical opacity ramp in OBJECT-LOCAL coordinates: 1.0 on the bottom row
-    (base, where the object touches the ground) and (1 - fade) on the top row
-    (the future tip of the shadow). fade in [0..1]: 0 = no attenuation,
-    1 = fully diluted tip.
+    Rampa vertical de opacidad en coordenadas LOCALES del objeto: 1.0 en la fila inferior
+    (la base, donde el objeto toca el suelo) y (1 - fade) en la fila superior (la futura
+    punta de la sombra). fade en [0..1]: 0 = sin atenuación, 1 = punta totalmente diluida.
     """
     oh, ow = shape
     fade = float(np.clip(fade, 0.0, 1.0))
@@ -29,11 +28,11 @@ def _vertical_fade_ramp(shape: tuple[int, int], fade: float) -> np.ndarray:
 def contact_shadow(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tuple[int, int],
                    intensity: float = 0.55, sigma: float = 3.0, band_ratio: float = 0.08) -> np.ndarray:
     """
-    Sharp dark contact shadow under the object's footprint.
+    Sombra de contacto nítida y oscura bajo la huella del objeto.
 
-    canvas_size = (W, H). The shadow is rendered into a full-canvas float32 mask
-    so the caller can multiply directly. `band_ratio` limits the shadow to a
-    horizontal strip immediately under the object's lowest pixels.
+    canvas_size = (W, H). La sombra se dibuja en una máscara float32 del tamaño del lienzo
+    para poder multiplicarla directamente. `band_ratio` limita la sombra a una franja
+    horizontal justo bajo los píxeles más bajos del objeto.
     """
     W, H = canvas_size
     out = np.zeros((H, W), dtype=np.float32)
@@ -42,7 +41,7 @@ def contact_shadow(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tu
     if not binary.any():
         return out
 
-    # Erode lightly so the contact shadow is tighter than the silhouette.
+    # Erosionamos un poco para que la sombra de contacto sea más ceñida que la silueta.
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     eroded = cv2.erode(binary, k, iterations=1)
     blurred = cv2.GaussianBlur(eroded, (0, 0), sigmaX=sigma, sigmaY=sigma)
@@ -59,12 +58,12 @@ def contact_shadow(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tu
 
     crop = blurred[sy1:sy2, sx1:sx2].astype(np.float32) / 255.0
 
-    # Restrict to vertical band near the bottom of the object's footprint.
+    # La restringimos a una banda vertical cerca de la base de la huella del objeto.
     ys, _ = np.where(alpha > 16)
     if ys.size:
         y_bottom_obj = int(ys.max())
         band_h = max(int(oh * band_ratio), 8)
-        # Build a feathered band mask in object-local coordinates.
+        # Banda con bordes difuminados, en coordenadas locales del objeto.
         band = np.zeros_like(alpha, dtype=np.float32)
         y_band_top = max(0, y_bottom_obj - int(band_h * 0.4))
         y_band_bot = min(oh, y_bottom_obj + band_h)
@@ -81,8 +80,8 @@ def drop_shadow(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tuple
                 offset: tuple[int, int] = (0, 0),
                 sigma: float = 18.0, intensity: float = 0.30) -> np.ndarray:
     """
-    Soft drop shadow obtained by an affine warp of the silhouette (vertical
-    squash + optional horizontal shear) and a large gaussian blur.
+    Sombra arrojada suave que se obtiene de una transformación afín de la silueta (aplastado
+    vertical más un cizallado horizontal opcional) seguida de un desenfoque gaussiano amplio.
     """
     W, H = canvas_size
     out = np.zeros((H, W), dtype=np.float32)
@@ -93,7 +92,7 @@ def drop_shadow(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tuple
     oh, ow = alpha.shape[:2]
     x, y = top_left
 
-    # Anchor warp to the bottom of the silhouette so it stays grounded.
+    # Anclamos la transformación a la base de la silueta para que quede pegada al suelo.
     ys, _ = np.where(alpha > 16)
     y_anchor_local = int(ys.max()) if ys.size else oh - 1
 
@@ -104,7 +103,7 @@ def drop_shadow(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tuple
     warped = cv2.warpAffine(binary, M, (ow, oh), flags=cv2.INTER_LINEAR, borderValue=0.0)
     warped = cv2.GaussianBlur(warped, (0, 0), sigmaX=sigma, sigmaY=sigma)
 
-    # Place into canvas with offset.
+    # Colocación en el lienzo con desplazamiento.
     dx, dy = offset
     x1, y1 = max(0, x + dx), max(0, y + dy)
     x2, y2 = min(W, x + dx + ow), min(H, y + dy + oh)
@@ -126,16 +125,16 @@ def cast_shadow(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tuple
                 sigma_tip: float = 24.0,
                 intensity: float = 0.55) -> np.ndarray:
     """
-    Procedural cast shadow: foreshortening (vertical squash) + directional shear
-    away from the light, with a base->tip opacity fade and a graduated penumbra
-    (sharp at the contact, soft at the tip).
+    Sombra proyectada procedural: escorzo (aplastado vertical) + cizallado en sentido contrario
+    a la luz, con un degradado de opacidad base->punta y una penumbra graduada (nítida en el
+    contacto, difusa en la punta).
 
-    Returns an HxW float32 [0..1] shadow mask (caller multiplies it onto the canvas).
-    The warp writes straight into the full canvas (translation baked into the affine
-    matrix), so the shadow is only ever clipped by the real canvas edge — never by the
-    object's own bounding box, even when the object is scaled up. The fade and the
-    penumbra ramp are warped together with the silhouette, so the projected tip is
-    always the faded/soft end regardless of object shape (works universally).
+    Devuelve una máscara de sombra HxW float32 en [0..1] (quien la usa la multiplica sobre el
+    lienzo). La transformación escribe directamente sobre el lienzo completo (la traslación va
+    horneada en la matriz afín), así que la sombra solo se recorta contra el borde real del
+    lienzo, nunca contra la caja del propio objeto, aunque este se escale. El degradado y la
+    rampa de penumbra se transforman junto con la silueta, de modo que la punta proyectada
+    siempre es el extremo diluido y difuso, sea cual sea la forma del objeto.
     """
     W, H = canvas_size
     out = np.zeros((H, W), dtype=np.float32)
@@ -208,8 +207,8 @@ def cast_shadow(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tuple
 def fake_ambient_occlusion(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tuple[int, int],
                            radius: int = 30, intensity: float = 0.15) -> np.ndarray:
     """
-    Soft darkening immediately around the silhouette, simulating ambient
-    occlusion. Built from the inverted distance transform OUTSIDE the silhouette.
+    Oscurecimiento suave alrededor de la silueta que simula oclusión ambiental. Se construye
+    a partir de la transformada de distancia invertida POR FUERA de la silueta.
     """
     W, H = canvas_size
     out = np.zeros((H, W), dtype=np.float32)
@@ -242,9 +241,9 @@ def scene_shadow(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tupl
                  sigma: float = 22.0,
                  intensity: float = 0.40) -> np.ndarray:
     """
-    Directional drop shadow using the light vector. The shadow is projected
-    OPPOSITE to the light direction; squashed vertically. `length` scales the
-    horizontal projection length relative to the object height.
+    Sombra arrojada direccional según el vector de luz. La sombra se proyecta en sentido
+    OPUESTO a la luz y se aplasta verticalmente. `length` escala la longitud de la proyección
+    horizontal respecto a la altura del objeto.
     """
     W, H = canvas_size
     out = np.zeros((H, W), dtype=np.float32)
@@ -261,7 +260,7 @@ def scene_shadow(canvas_size: tuple[int, int], alpha: np.ndarray, top_left: tupl
     norm = max(np.hypot(lx, ly), 1e-6)
     lx, ly = lx / norm, ly / norm
 
-    # Shear the shadow toward (-lx) and squash vertically.
+    # Cizallamos la sombra hacia (-lx) y la aplastamos en vertical.
     shear_x = -lx * length
     M = np.float32([
         [1.0, shear_x, -shear_x * y_anchor_local],

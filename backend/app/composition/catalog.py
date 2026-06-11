@@ -1,23 +1,23 @@
 """
-Background catalog: scans backend/app/backgrounds/<category>/ at startup, reads
-optional sidecar .json metadata files, and exposes lookup helpers.
+Catálogo de fondos: al arrancar escanea backend/app/backgrounds/<categoria>/, lee los
+archivos .json de metadatos opcionales que acompañan a cada imagen y expone métodos de consulta.
 
-Folder layout:
+Estructura de carpetas:
     backgrounds/
       oceano/
         wave1.jpg
-        wave1.json        # optional metadata
+        wave1.json        # metadatos opcionales
         ...
       marmol/
       ...
 
-Sidecar JSON schema (all keys optional, defaults are sensible):
+Esquema del JSON acompañante (todas las claves opcionales, con valores por defecto razonables):
     {
-      "ground_y": 0.72,                  # relative y of horizon/ground (0..1)
-      "light_dir": [0.4, -0.6],          # 2D unit-ish vector; OpenCV y is down
-      "reflective": true,                # enable vertical reflection
+      "ground_y": 0.72,                  # y relativa del horizonte/suelo (0..1)
+      "light_dir": [0.4, -0.6],          # vector 2D ~unitario; en OpenCV la y va hacia abajo
+      "reflective": true,                # activa el reflejo vertical
       "reflective_type": "glossy",       # "glossy" | "matte"
-      "label": "Mármol pulido"           # optional display label
+      "label": "Mármol pulido"           # etiqueta opcional para mostrar
     }
 """
 
@@ -31,10 +31,10 @@ THUMB_SIZE = 256
 
 @dataclass
 class BackgroundEntry:
-    id: str               # "<category>/<filename_without_ext>"
+    id: str               # "<categoria>/<nombre_sin_extension>"
     category: str
-    name: str             # original filename without extension
-    path: str             # absolute path to source image
+    name: str             # nombre de archivo original sin extensión
+    path: str             # ruta absoluta a la imagen de origen
     label: str
     reflective: bool = False
     reflective_type: str = "matte"
@@ -60,7 +60,7 @@ class BackgroundCatalog:
         self._by_category.clear()
         if not self.root.exists():
             self.root.mkdir(parents=True, exist_ok=True)
-            print(f"📂 Carpeta de backgrounds creada (vacía): {self.root}")
+            print(f"Carpeta de backgrounds creada (vacía): {self.root}")
             return
 
         for category_dir in sorted(p for p in self.root.iterdir() if p.is_dir()):
@@ -75,7 +75,7 @@ class BackgroundCatalog:
                     try:
                         meta = json.loads(meta_path.read_text(encoding="utf-8"))
                     except Exception as exc:
-                        print(f"⚠️  Metadatos JSON inválidos en {meta_path}: {exc}")
+                        print(f"Metadatos JSON inválidos en {meta_path}: {exc}")
 
                 name = img_path.stem
                 entry = BackgroundEntry(
@@ -96,7 +96,7 @@ class BackgroundCatalog:
                 self._by_category[category] = entries
 
         total = sum(len(v) for v in self._by_category.values())
-        print(f"📚 Catálogo de backgrounds: {total} imágenes en {len(self._by_category)} categorías")
+        print(f"Catálogo de backgrounds: {total} imágenes en {len(self._by_category)} categorías")
 
     def list_grouped(self) -> dict[str, list[dict]]:
         return {cat: [e.to_public() for e in entries] for cat, entries in self._by_category.items()}

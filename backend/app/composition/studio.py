@@ -1,8 +1,8 @@
 """
-MODE 1 — Estudio profesional.
+MODO 1 — Estudio profesional.
 
-Procedural white/gray background + grounding shadows + light relighting.
-No external assets, no IA. Target latency < 250 ms on 1024x1024.
+Fondo procedural blanco/gris + sombras de suelo + reiluminación ligera. Sin recursos
+externos ni IA.
 """
 
 import time
@@ -12,7 +12,7 @@ import cv2
 from .io_utils import (
     png_bytes_to_rgba, rgb_to_png_bytes,
     alpha_blend, multiply_shadow,
-    compute_object_footprint,
+    compute_object_footprint, print_stage_timings,
 )
 from .edges import prepare_object
 from .placement import auto_scale
@@ -26,14 +26,14 @@ VALID_STYLES = ("white", "soft_gray")
 def _make_canvas(size: tuple[int, int], style: str) -> np.ndarray:
     W, H = size
     if style == "soft_gray":
-        # Vertical gradient 250 -> 230.
+        # Degradado vertical de 250 a 230.
         col = np.linspace(250, 230, H, dtype=np.float32).reshape(-1, 1)
         canvas = np.repeat(col, W, axis=1)
         canvas = np.repeat(canvas[:, :, None], 3, axis=2)
-    else:  # 'white' (default)
+    else:  # 'white' (por defecto)
         canvas = np.full((H, W, 3), 250.0, dtype=np.float32)
 
-    # Subtle radial vignette darkening the corners by ~4%.
+    # Viñeteado radial sutil que oscurece las esquinas un ~4 %.
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
     cx, cy = W / 2.0, H / 2.0
     r = np.sqrt((xx - cx) ** 2 + (yy - cy) ** 2)
@@ -50,21 +50,24 @@ def compose_studio(png_bytes: bytes,
                    manual_scale: float | None = None,
                    target_height_ratio: float = 0.62) -> bytes:
     """
-    Render the segmented object on a procedural studio background.
+    Renderiza el objeto segmentado sobre un fondo procedural de estudio.
 
-    Args:
-        png_bytes: PNG RGBA of the segmented product.
-        style:     'white' or 'soft_gray'.
-        canvas_size: (W, H) of the output image.
-        manual_position: optional (rel_cx, rel_y_feet) in [0..1]. Overrides default centering.
-        manual_scale:    optional silhouette-height/canvas-height ratio. Overrides target_height_ratio.
+    png_bytes es el PNG RGBA del producto ya segmentado. `style` puede ser 'white' o
+    'soft_gray', y canvas_size es el (W, H) de la imagen de salida. Tanto manual_position
+    (rel_cx, rel_y_pies en [0..1]) como manual_scale (relación altura silueta / altura del
+    lienzo) son opcionales y, si se indican, anulan el centrado y el escalado por defecto.
 
-    Returns: PNG bytes (RGB). The result is opaque (the studio background fills the frame).
+    Devuelve los bytes de un PNG (RGB). El resultado es opaco, ya que el fondo de estudio
+    cubre todo el encuadre.
     """
     if style not in VALID_STYLES:
         style = "white"
 
     t0 = time.perf_counter()
+    timings: list[tuple[str, float]] = []
+
+    # 1) Construcción del lienzo (limpieza del objeto, escalado/posición y lienzo).
+    t = time.perf_counter()
     rgba = png_bytes_to_rgba(png_bytes)
     rgba = prepare_object(rgba)
 
@@ -72,7 +75,7 @@ def compose_studio(png_bytes: bytes,
         target_height_ratio = float(np.clip(manual_scale, 0.05, 1.5))
     obj_resized, default_top_left = auto_scale(rgba, canvas_size, target_height_ratio)
 
-    # Manual override of position uses the silhouette's center-feet anchor.
+    # El ajuste manual de posición se ancla al punto centro-pies de la silueta.
     if manual_position is not None:
         W, H = canvas_size
         fx_min, _, fx_max, fy_max = compute_object_footprint(obj_resized[..., 3])
@@ -86,25 +89,34 @@ def compose_studio(png_bytes: bytes,
         top_left = default_top_left
 
     canvas = _make_canvas(canvas_size, style)
+    timings.append(("Construcción del lienzo", (time.perf_counter() - t) * 1000.0))
 
-    # Nota: sin "ambient occlusion" alrededor de la silueta — generaba un halo de
-    # sombreado rodeando todo el objeto. Solo conservamos sombras de suelo reales
-    # (proyectada + contacto).
+    # 2) Sombra proyectada.
+    t = time.perf_counter()
     drop = cast_shadow(canvas_size, obj_resized[..., 3], top_left,
                        light_dir=(-0.6, -0.6), length=0.45, squash=0.20,
                        fade=0.5, sigma_contact=4.0, sigma_tip=20.0, intensity=0.55)
+    canvas = multiply_shadow(canvas, drop, color=(0, 0, 0), opacity=1.0)
+    timings.append(("Sombra proyectada", (time.perf_counter() - t) * 1000.0))
+
+    # 3) Pegado del objeto (con keyfill de estudio).
+    t = time.perf_counter()
+    obj_lit = apply_studio_keyfill(obj_resized, amplitude=6.0, mix=0.25)
+    canvas = _paste_object(canvas, obj_lit, top_left)
+    timings.append(("Pegado del objeto", (time.perf_counter() - t) * 1000.0))
+
+    # 4) Sombra de contacto.
+    t = time.perf_counter()
     contact = contact_shadow(canvas_size, obj_resized[..., 3], top_left,
                              intensity=0.55, sigma=3.0, band_ratio=0.08)
-
-    canvas = multiply_shadow(canvas, drop,    color=(0, 0, 0), opacity=1.0)
-
-    obj_lit = apply_studio_keyfill(obj_resized, amplitude=6.0, mix=0.25)
-
-    canvas = _paste_object(canvas, obj_lit, top_left)
     canvas = multiply_shadow(canvas, contact, color=(0, 0, 0), opacity=1.0)
+    timings.append(("Sombra de contacto", (time.perf_counter() - t) * 1000.0))
 
     elapsed_ms = (time.perf_counter() - t0) * 1000.0
-    print(f"🎬 [studio:{style}] composed in {elapsed_ms:.0f} ms")
+    print_stage_timings(
+        f"[studio:{style}]",
+        timings, elapsed_ms, total_label="Total estudio",
+    )
     return rgb_to_png_bytes(canvas)
 
 

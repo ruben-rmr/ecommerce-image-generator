@@ -1,3 +1,8 @@
+"""
+Perfilado rápido de las funciones de sombra (ms por llamada) sobre una silueta sintética.
+Compara cast_shadow, fake_ambient_occlusion y contact_shadow para ver cuál domina el coste.
+Ejecutar desde backend/ con el venv activado: python _prof.py
+"""
 import time
 import numpy as np
 from app.composition import shadows
@@ -7,7 +12,7 @@ alpha = np.zeros((oh, ow), np.uint8)
 alpha[:, 40:120] = 255
 top_left = (450, 400)
 
-# Warm-up
+# Calentamiento (no se contabiliza)
 shadows.cast_shadow((1024, 1024), alpha, top_left)
 
 N = 20

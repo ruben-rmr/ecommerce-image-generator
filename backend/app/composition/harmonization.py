@@ -1,7 +1,6 @@
 """
-Color/luminance harmonization (LAB Reinhard, brightness/contrast match,
-atmospheric edge blending). Intentionally bounded so the product's identity
-is preserved.
+Armonización de color/luminancia: transferencia LAB tipo Reinhard, ajuste de brillo/contraste
+y fusión atmosférica del borde. Está acotada a propósito para preservar la identidad del producto.
 """
 
 import cv2
@@ -12,7 +11,7 @@ from .edges import edge_ring_mask
 
 
 def _masked_mean_std(channel: np.ndarray, mask: np.ndarray) -> tuple[float, float]:
-    """Mean/std of a channel restricted to mask>0 (binary). Falls back to global."""
+    """Media y desviación de un canal restringido a mask>0. Si la máscara está vacía, usa toda la imagen."""
     sel = mask > 0
     if not sel.any():
         return float(channel.mean()), float(channel.std() + 1e-6)
@@ -24,13 +23,12 @@ def harmonize_lab(obj_rgba: np.ndarray, bg_roi_rgb: np.ndarray,
                   strength: float = 0.45,
                   L_strength: float | None = None) -> np.ndarray:
     """
-    Reinhard-style color transfer in LAB, applied partially.
+    Transferencia de color en LAB al estilo Reinhard, aplicada parcialmente.
 
-    Channels a/b use `strength` (default 0.45). L uses `L_strength` (default
-    half of `strength`) to avoid washing out volume/highlights on the product.
+    Los canales a/b usan `strength` (0.45 por defecto). El canal L usa `L_strength` (por
+    defecto la mitad de `strength`) para no apagar el volumen ni las luces del producto.
 
-    Only RGB inside the object's silhouette (alpha > 8) is transformed; the
-    alpha channel is untouched.
+    Solo se transforma el RGB del interior de la silueta (alfa > 8); el canal alfa no se toca.
     """
     if L_strength is None:
         L_strength = strength * 0.5
@@ -61,8 +59,9 @@ def harmonize_lab(obj_rgba: np.ndarray, bg_roi_rgb: np.ndarray,
 def brightness_contrast_match(obj_rgba: np.ndarray, bg_roi_rgb: np.ndarray,
                               strength: float = 0.30) -> np.ndarray:
     """
-    Fine adjustment of L (luminance) mean only. Useful after harmonize_lab to
-    bridge any residual brightness gap. Strength bounded to small values.
+    Ajuste fino que iguala solo la media del canal L (luminancia). Va bien después de
+    harmonize_lab para cerrar cualquier diferencia de brillo que quede. La intensidad se
+    mantiene en valores pequeños.
     """
     rgba = obj_rgba.copy()
     alpha = rgba[..., 3]
@@ -85,10 +84,10 @@ def atmospheric_blend(canvas_rgb: np.ndarray, top_left: tuple[int, int],
                       bg_blur_sigma: float = 3.0,
                       mix: float = 0.45) -> np.ndarray:
     """
-    Mix the object's edge ring with a locally-blurred copy of the background,
-    BEFORE the alpha-blend. This kills the 'sticker' look at the seam.
+    Mezcla el anillo del borde del objeto con una copia desenfocada del fondo justo debajo,
+    ANTES de la mezcla alfa. Esto elimina el aspecto de "pegatina" en la costura.
 
-    Returns a modified obj_rgba (alpha channel left intact).
+    Devuelve un obj_rgba modificado (el canal alfa se deja intacto).
     """
     H, W = canvas_rgb.shape[:2]
     out = obj_rgba.copy()
@@ -106,7 +105,7 @@ def atmospheric_blend(canvas_rgb: np.ndarray, top_left: tuple[int, int],
     sx1, sy1 = x1 - x, y1 - y
     sx2, sy2 = sx1 + (x2 - x1), sy1 + (y2 - y1)
 
-    # Locally blurred background patch under the object.
+    # Parche del fondo bajo el objeto, desenfocado localmente.
     patch = canvas_rgb[y1:y2, x1:x2].astype(np.float32)
     patch_blur = cv2.GaussianBlur(patch, (0, 0), sigmaX=bg_blur_sigma, sigmaY=bg_blur_sigma)
 

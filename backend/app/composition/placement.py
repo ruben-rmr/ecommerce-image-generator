@@ -1,6 +1,6 @@
 """
-Auto-placement: scaling and positioning the segmented object on a canvas.
-Heuristic by default; manual override (relative coordinates) is honored.
+Colocación automática: escalado y posicionamiento del objeto segmentado sobre el lienzo.
+Por defecto es heurístico, pero se respeta el ajuste manual (coordenadas relativas).
 """
 
 import cv2
@@ -12,12 +12,12 @@ from .io_utils import compute_object_footprint, resize_rgba
 def auto_scale(rgba: np.ndarray, canvas_size: tuple[int, int],
                target_height_ratio: float = 0.62) -> tuple[np.ndarray, tuple[int, int]]:
     """
-    Scale `rgba` so the object's silhouette height equals `target_height_ratio`
-    of the canvas height. The whole rgba image is resized proportionally.
+    Escala `rgba` para que la altura de la silueta sea `target_height_ratio` de la altura
+    del lienzo. Se redimensiona la imagen completa de forma proporcional.
 
-    Returns (resized_rgba, (top_left_x_default, top_left_y_default)) where the
-    default top-left centers the object horizontally and grounds the silhouette
-    at 78 % of the canvas height (studio-style baseline).
+    Devuelve (rgba_redimensionado, (x_sup_izq, y_sup_izq)), donde la esquina superior
+    izquierda por defecto centra el objeto en horizontal y apoya la silueta al 78 % de la
+    altura del lienzo (línea de suelo típica de estudio).
     """
     W, H = canvas_size
     alpha = rgba[..., 3]
@@ -32,7 +32,7 @@ def auto_scale(rgba: np.ndarray, canvas_size: tuple[int, int],
 
     resized = resize_rgba(rgba, (new_w, new_h))
 
-    # Recompute footprint on the resized image so the placement is exact.
+    # Recalculamos la huella sobre la imagen ya redimensionada para que la colocación sea exacta.
     rx_min, ry_min, rx_max, ry_max = compute_object_footprint(resized[..., 3])
     obj_cx = (rx_min + rx_max) // 2
     obj_y_bottom = ry_max
@@ -47,18 +47,18 @@ def auto_scale(rgba: np.ndarray, canvas_size: tuple[int, int],
 
 def detect_ground_y(bg_rgb: np.ndarray) -> float:
     """
-    Detect the ground/horizon line via vertical gradient of luminance.
-    Returns relative y in [0..1]. Falls back to 0.70 when the signal is flat.
+    Detecta la línea de suelo/horizonte a partir del gradiente vertical de luminancia.
+    Devuelve la y relativa en [0..1]. Si la señal es plana, recurre a 0.70.
     """
     gray = cv2.cvtColor(bg_rgb, cv2.COLOR_RGB2GRAY).astype(np.float32)
     H, W = gray.shape
-    # Row-wise mean luminance, smoothed.
+    # Luminancia media por fila, suavizada.
     row_mean = gray.mean(axis=1)
     row_mean = cv2.GaussianBlur(row_mean.reshape(-1, 1), (0, 0), sigmaY=H * 0.02, sigmaX=0).ravel()
     grad = np.abs(np.diff(row_mean))
     if grad.size == 0 or grad.max() < 4.0:
         return 0.70
-    # Bias the search toward the lower half (where ground usually is).
+    # Sesgamos la búsqueda hacia la mitad inferior, que es donde suele estar el suelo.
     weights = np.linspace(0.4, 1.2, grad.size, dtype=np.float32)
     score = grad * weights
     idx = int(np.argmax(score))
@@ -71,12 +71,12 @@ def place_on_scene(rgba: np.ndarray, bg_size: tuple[int, int],
                    manual_position: tuple[float, float] | None = None,
                    manual_scale: float | None = None) -> tuple[np.ndarray, tuple[int, int]]:
     """
-    Scale and position the object onto a scene background.
+    Escala y posiciona el objeto sobre el fondo de una escena.
 
-    - target_height_ratio: silhouette height / canvas height (overridden by manual_scale).
-    - ground_y_rel: where the object's feet should land (0..1) by default.
-    - manual_position: (rel_x, rel_y) for the object's CENTER-FEET point in [0..1].
-    - manual_scale:    overrides target_height_ratio if provided.
+    - target_height_ratio: altura de la silueta / altura del lienzo (lo sobrescribe manual_scale).
+    - ground_y_rel: dónde caen los pies del objeto (0..1) por defecto.
+    - manual_position: (rel_x, rel_y) del punto CENTRO-PIES del objeto en [0..1].
+    - manual_scale: si se indica, sustituye a target_height_ratio.
     """
     W, H = bg_size
     if manual_scale is not None:
@@ -113,9 +113,9 @@ def background_roi_below_object(bg_rgb: np.ndarray, top_left: tuple[int, int],
                                  footprint: tuple[int, int, int, int],
                                  expand: float = 0.5) -> np.ndarray:
     """
-    Return a rectangle of the background sampled around/under the object,
-    used as the source for color harmonization. Defaults to a strip 1.5x the
-    object's width, centered horizontally on the object.
+    Devuelve un rectángulo del fondo tomado alrededor y debajo del objeto, que se usa como
+    fuente para armonizar el color. Por defecto es una franja de 1.5x el ancho del objeto,
+    centrada horizontalmente sobre él.
     """
     H, W = bg_rgb.shape[:2]
     ow, oh = obj_size

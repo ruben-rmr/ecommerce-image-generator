@@ -1,14 +1,13 @@
 """
-Local composition pipeline (no generative AI).
+Pipeline de composición local (sin IA generativa).
 
-Modes:
-    - studio: procedural white/gray background + grounding shadows
-    - scene:  composite onto local background image with light harmonization
+Hay dos modos:
+    - studio: fondo procedural blanco/gris con sombras que asientan el objeto.
+    - scene:  composición sobre una imagen de fondo del catálogo, armonizando luz y color.
 
-The segmented object is preserved exactly. Only global tone/luminance is
-adjusted with bounded factors. Heavy post-processing (decontamination,
-feathering) is applied to the alpha channel, never to the RGB content
-inside the object's silhouette.
+El objeto segmentado se respeta tal cual. Solo se ajustan el tono y la luminancia
+globales con factores acotados. El postprocesado fuerte (descontaminación de halo,
+suavizado de bordes) actúa sobre el canal alfa, nunca sobre el RGB interior de la silueta.
 """
 
 from .studio import compose_studio

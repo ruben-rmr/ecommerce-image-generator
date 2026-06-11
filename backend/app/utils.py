@@ -60,7 +60,7 @@ def detectar_bbox_canny(pil_image: Image.Image, padding: float = 0.03) -> list[i
     x2 = min(w, rx + rw + pad_x)
     y2 = min(h, ry + rh + pad_y)
 
-    print(f"🔍 Canny bbox detectado: [{x1},{y1},{x2},{y2}] sobre {w}×{h}")
+    print(f"Canny bbox detectado: [{x1},{y1},{x2},{y2}] sobre {w}x{h}")
     _save_debug_images(img_rgb, edges_dilated, [x1, y1, x2, y2])
     return [x1, y1, x2, y2]
 
@@ -84,9 +84,9 @@ def _save_debug_images(img_rgb: np.ndarray, edges: np.ndarray, bbox: list[int]) 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
         cv2.imwrite(str(_DEBUG_DIR / f"{ts}_bbox_detected.jpg"), vis)
 
-        print(f"💾 Debug guardado en debug_auto/{ts}_*.jpg")
+        print(f"Debug guardado en debug_auto/{ts}_*.jpg")
     except Exception as exc:
-        print(f"⚠️  No se pudo guardar debug: {exc}")
+        print(f"No se pudo guardar debug: {exc}")
 
 
 def pre_procesar_objeto_universal(pil_image_original):

@@ -1,8 +1,8 @@
 """
-Alpha-edge cleanup: halo decontamination, micro-feathering, seam blending.
+Limpieza del borde alfa: descontaminación de halo, micro-suavizado y fusión de la costura.
 
-The product's solid interior pixels are left UNTOUCHED. We only operate on
-the partial-alpha annulus and the alpha channel itself.
+Los píxeles del interior sólido del producto NO se tocan. Solo trabajamos sobre el
+anillo de alfa parcial y sobre el propio canal alfa.
 """
 
 import cv2
@@ -11,21 +11,21 @@ import numpy as np
 
 def clean_alpha_edges(rgba: np.ndarray) -> np.ndarray:
     """
-    Migration of utils.pre_procesar_objeto_universal:
-      1. Telea inpainting on transparent regions to clean dirty RGB borders.
-      2. Elliptical erosion (1px) to respect curves.
-      3. Gaussian micro-feather (sigma ~0.8) on alpha for soft edges.
+    Versión migrada de utils.pre_procesar_objeto_universal. Hace tres cosas:
+    inpainting Telea sobre las zonas transparentes para limpiar bordes RGB sucios,
+    una erosión elíptica de 1 px que respeta las curvas, y un micro-suavizado
+    gaussiano (sigma ~0.8) del alfa para conseguir bordes blandos.
 
-    Operates on a copy. RGB inside the solid silhouette is preserved.
+    Trabaja sobre una copia y conserva el RGB del interior sólido de la silueta.
     """
     if rgba.ndim != 3 or rgba.shape[2] != 4:
-        raise ValueError("clean_alpha_edges expects HxWx4 RGBA")
+        raise ValueError("clean_alpha_edges espera un RGBA HxWx4")
 
     rgb = rgba[..., :3].copy()
     alpha = rgba[..., 3].copy()
 
-    # Telea inpainting only over very-transparent pixels (< 200 alpha) so the
-    # solid interior RGB is never rewritten.
+    # El inpainting Telea solo cubre los píxeles muy transparentes (< 200 de alfa),
+    # así que el RGB del interior sólido nunca se reescribe.
     _, mask_solid = cv2.threshold(alpha, 200, 255, cv2.THRESH_BINARY)
     mask_to_fill = cv2.bitwise_not(mask_solid)
     bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
@@ -42,19 +42,20 @@ def clean_alpha_edges(rgba: np.ndarray) -> np.ndarray:
 
 def decontaminate_alpha_edges(rgba: np.ndarray, ring_px: int = 3) -> np.ndarray:
     """
-    Remove residual color halo: in pixels with 0 < alpha < 255 (the seam ring),
-    replace RGB by the mean RGB of fully-opaque neighbours within a small window.
+    Elimina el halo de color residual: en los píxeles con 0 < alfa < 255 (el anillo
+    de la costura) sustituye el RGB por el promedio del RGB de los vecinos totalmente
+    opacos dentro de una ventana pequeña.
 
-    Uses cv2.blur restricted to fully-opaque pixels via masked accumulation.
+    Usa cv2.boxFilter restringido a los píxeles opacos mediante una acumulación con máscara.
     """
     if rgba.ndim != 3 or rgba.shape[2] != 4:
-        raise ValueError("decontaminate_alpha_edges expects HxWx4 RGBA")
+        raise ValueError("decontaminate_alpha_edges espera un RGBA HxWx4")
 
     rgb = rgba[..., :3].astype(np.float32)
     alpha = rgba[..., 3]
 
-    solid = (alpha >= 250).astype(np.float32)            # weights
-    rgb_w = rgb * solid[..., None]                       # zero where not solid
+    solid = (alpha >= 250).astype(np.float32)            # pesos
+    rgb_w = rgb * solid[..., None]                        # cero donde no es sólido
 
     k = 2 * ring_px + 1
     rgb_sum = cv2.boxFilter(rgb_w, ddepth=-1, ksize=(k, k), normalize=False)
@@ -66,7 +67,7 @@ def decontaminate_alpha_edges(rgba: np.ndarray, ring_px: int = 3) -> np.ndarray:
     out_rgb = rgb.copy()
     out_rgb[seam] = rgb_mean_neighbours[seam]
 
-    # Where there are NO solid neighbours within the window, keep original RGB.
+    # Si dentro de la ventana no hay ningún vecino sólido, dejamos el RGB original.
     no_neighbour = (w_sum < 0.5)
     out_rgb[no_neighbour] = rgb[no_neighbour]
 
@@ -75,7 +76,7 @@ def decontaminate_alpha_edges(rgba: np.ndarray, ring_px: int = 3) -> np.ndarray:
 
 
 def feather_alpha(rgba: np.ndarray, sigma: float = 0.8) -> np.ndarray:
-    """Gaussian blur the alpha channel only. Keeps RGB intact."""
+    """Aplica un desenfoque gaussiano solo al canal alfa. El RGB queda intacto."""
     if sigma <= 0:
         return rgba
     out = rgba.copy()
@@ -85,8 +86,8 @@ def feather_alpha(rgba: np.ndarray, sigma: float = 0.8) -> np.ndarray:
 
 def edge_ring_mask(alpha: np.ndarray, thickness: int = 3) -> np.ndarray:
     """
-    Returns a uint8 HxW mask (0..255) marking the 'seam' annulus around the
-    object: dilate(alpha) - erode(alpha). Useful for atmospheric blending.
+    Devuelve una máscara uint8 HxW (0..255) que marca el anillo de la costura alrededor
+    del objeto: dilate(alfa) - erode(alfa). Sirve para la fusión atmosférica.
     """
     binary = (alpha > 8).astype(np.uint8) * 255
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * thickness + 1, 2 * thickness + 1))
@@ -99,9 +100,9 @@ def edge_ring_mask(alpha: np.ndarray, thickness: int = 3) -> np.ndarray:
 
 def prepare_object(rgba: np.ndarray) -> np.ndarray:
     """
-    Standard pre-composition cleanup: decontaminate halo first (uses original
-    solid RGB), then feather alpha lightly. Telea inpainting is intentionally
-    NOT run here — decontamination is a more targeted halo killer.
+    Limpieza estándar previa a la composición: primero se descontamina el halo (usando el
+    RGB sólido original) y luego se suaviza ligeramente el alfa. Aquí no se ejecuta el
+    inpainting Telea a propósito: la descontaminación elimina el halo de forma más selectiva.
     """
     rgba = decontaminate_alpha_edges(rgba, ring_px=3)
     rgba = feather_alpha(rgba, sigma=0.8)

@@ -1,8 +1,8 @@
 """
-Light-direction estimation and lightweight relighting (LAB L gradient overlay).
+Estimación de la dirección de la luz y reiluminación ligera (gradiente sobre el canal L en LAB).
 
-We never paint over the product's geometry — we apply a subtle directional
-luminance gradient confined to the object's silhouette.
+Nunca repintamos la geometría del producto: solo añadimos un gradiente direccional sutil de
+luminancia confinado a la silueta del objeto.
 """
 
 import cv2
@@ -13,11 +13,12 @@ from .io_utils import srgb_to_lab, lab_to_srgb
 
 def estimate_light_dir(bg_rgb: np.ndarray) -> tuple[float, float]:
     """
-    Estimate light direction by locating the centroid of the brightest region
-    in a downscaled, blurred copy of the background.
+    Estima la dirección de la luz localizando el centroide de la zona más brillante en una
+    copia reducida y desenfocada del fondo.
 
-    Returns (dx, dy) unit vector. Default fallback is a soft top-right key:
-    (+0.4, -0.6) — y axis points downward, so negative y means "from above".
+    Devuelve un vector unitario (dx, dy). Si no encuentra señal, recurre a una luz principal
+    suave arriba-derecha: (+0.4, -0.6). El eje y crece hacia abajo, así que una y negativa
+    significa "desde arriba".
     """
     h, w = bg_rgb.shape[:2]
     scale = 128 / max(h, w)
@@ -48,7 +49,7 @@ def estimate_light_dir(bg_rgb: np.ndarray) -> tuple[float, float]:
 
 def _directional_gradient(shape: tuple[int, int], direction: tuple[float, float]) -> np.ndarray:
     """
-    Build a normalized HxW float32 gradient in [-1, 1] increasing along `direction`.
+    Construye un gradiente float32 HxW normalizado en [-1, 1] que crece a lo largo de `direction`.
     """
     h, w = shape
     yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
@@ -64,9 +65,9 @@ def _directional_gradient(shape: tuple[int, int], direction: tuple[float, float]
 def apply_directional_relight(rgba: np.ndarray, light_dir: tuple[float, float],
                               amplitude: float = 5.0, mix: float = 0.20) -> np.ndarray:
     """
-    Add a subtle ±L gradient to the object aligned with `light_dir`. Only the
-    silhouette is affected (alpha-weighted). `amplitude` is in LAB L units;
-    `mix` scales the final blend.
+    Suma al objeto un gradiente ±L sutil alineado con `light_dir`. Solo afecta a la silueta
+    (ponderado por el alfa). `amplitude` va en unidades del canal L de LAB y `mix` escala la
+    mezcla final.
     """
     if mix <= 0 or amplitude <= 0:
         return rgba
@@ -86,7 +87,7 @@ def apply_directional_relight(rgba: np.ndarray, light_dir: tuple[float, float],
 
 def apply_studio_keyfill(rgba: np.ndarray, amplitude: float = 6.0, mix: float = 0.25) -> np.ndarray:
     """
-    Studio-style key+fill: top-left brighter, bottom-right slightly darker.
-    Direction is fixed — light usually comes from above-left in product shots.
+    Esquema key+fill de estudio: más claro arriba-izquierda y algo más oscuro abajo-derecha.
+    La dirección es fija porque en las fotos de producto la luz suele venir desde arriba-izquierda.
     """
     return apply_directional_relight(rgba, (-0.6, -0.6), amplitude=amplitude, mix=mix)

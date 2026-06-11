@@ -1,5 +1,5 @@
-// ── Datos de la galería ───────────────────────────────────────────────
-// Las imágenes se descubren AUTOMÁTICAMENTE: basta con dejar los archivos en
+// Datos de la galería.
+// Las imágenes se descubren automáticamente: basta con dejar los archivos en
 // la carpeta ./images/ (junto a este fichero) y aparecerán en la galería.
 //
 // Título y descripción:
@@ -14,7 +14,7 @@ const modules = import.meta.glob(
 )
 
 // Metadatos opcionales por nombre de archivo. Ejemplo:
-// 'nature.jpg': { title: 'Nature', description: 'Photography' },
+// 'naturaleza.jpg': { title: 'Naturaleza', description: 'Fotografía' },
 const META = {
 }
 

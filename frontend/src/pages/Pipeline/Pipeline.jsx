@@ -174,7 +174,12 @@ export default function Pipeline({ mode = 'full' }) {
   }, [])
 
   const loadFile = useCallback((file) => {
-    if (!file || !file.type.startsWith('image/')) return
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      resetAllState({ full: true })
+      setError('Formato de archivo no válido. Sube una imagen (JPG, PNG, WEBP…).')
+      return
+    }
     setImageFile(file)
     resetAllState()
 
@@ -198,7 +203,7 @@ export default function Pipeline({ mode = 'full' }) {
     loadFile(e.dataTransfer.files[0])
   }
 
-  // ── Dibujo de bounding box (cuando estamos en segment+manual con imagen cargada) ──
+  // Dibujo del bounding box (solo en segment + manual y con una imagen cargada).
   const drawingEnabled =
     activeTab === 'segment' && segMode === 'manual' && !!imageObj
 
@@ -252,7 +257,7 @@ export default function Pipeline({ mode = 'full' }) {
     return { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` }
   }
 
-  // ── Acciones backend ──
+  // Acciones contra el backend.
   const handleSegmentBbox = async () => {
     if (!imageFile || !bbox) return
     setLoading(true); setError(null)
@@ -349,7 +354,7 @@ export default function Pipeline({ mode = 'full' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composeMode, studioStyle, selectedBg, harmonize, placement.x, placement.y, placement.scale])
 
-  // ── Acción del botón principal de la esquina inferior derecha ──
+  // Acción del botón principal de la esquina inferior derecha.
   const primaryAction = useMemo(() => {
     if (isProcessing) return { label: 'PROCESANDO…', onClick: null, disabled: true }
 
@@ -373,7 +378,7 @@ export default function Pipeline({ mode = 'full' }) {
     return { label: '—', onClick: null, disabled: true }
   }, [activeTab, segMode, imageObj, bbox, isProcessing, generateUnlocked, composeMode, selectedBg, handleCompose])
 
-  // ── Tabs disponibles según modo ──
+  // Pestañas disponibles según el modo.
   const showSegmentTab = mode !== 'generate'
   const showGenerateTab = mode !== 'segment'
 
