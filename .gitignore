@@ -1,5 +1,6 @@
 # Archivos de Claude
 .claude/
+settings.local.json
 
 # Archivos de caché de Python
 __pycache__/
@@ -52,3 +53,17 @@ frontend/*.sw?
 # Archivos .drawio (realizados para esquemas)
 CLAUDE.md
 *.drawio
+
+# Scripts sueltos de smoke/bench/profiling y sus salidas
+backend/_*.py
+backend/_*.png
+backend/cascade_entradas/
+backend/cascade_salidas/
+
+# Imágenes de prueba y salidas generadas en local
+backend/colonia.jpeg
+backend/escena_1.png
+backend/segmentado.png
+backend/generado.png
+backend/pegatina_demo.png
+bench_segmentation.png
