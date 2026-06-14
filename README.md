@@ -1,4 +1,4 @@
-# Photify — e-commerce image generator
+# Photify: e-commerce image generator
 
 Photify recorta el producto de una foto y lo coloca sobre un fondo nuevo, todo en local y sin pasar por ninguna API de pago. Subes la imagen, marcas el objeto (o dejas que lo detecte solo), y obtienes un PNG con fondo transparente que luego puedes montar sobre un fondo de estudio o sobre una escena del catálogo.
 
