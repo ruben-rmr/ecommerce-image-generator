@@ -1,8 +1,8 @@
-# Photify — e-commerce image generator
+# Photify: e-commerce image generator
 
 Photify recorta el producto de una foto y lo coloca sobre un fondo nuevo, todo en local y sin pasar por ninguna API de pago. Subes la imagen, marcas el objeto (o dejas que lo detecte solo), y obtienes un PNG con fondo transparente que luego puedes montar sobre un fondo de estudio o sobre una escena del catálogo.
 
-La parte pesada —segmentación con FastSAM y composición— corre en el backend. El frontend es una SPA en React que dibuja el bounding box y enseña el resultado.
+La parte pesada (segmentación con FastSAM y composición) corre en el backend. El frontend es una SPA en React que dibuja el bounding box y enseña el resultado.
 
 ![Ejemplo de resultado](frontend/public/demonstration/generado_colonia.png)
 
@@ -17,9 +17,9 @@ Nada sale de tu máquina: no hay claves de API ni servicios externos de por medi
 
 ## Stack
 
-**Backend** — Python 3.10+, FastAPI + Uvicorn, ultralytics (FastSAM), Pillow, OpenCV y NumPy.
+**Backend**: Python 3.10+, FastAPI + Uvicorn, ultralytics (FastSAM), Pillow, OpenCV y NumPy.
 
-**Frontend** — React 19, Vite 7, Tailwind 4 y react-router-dom v7.
+**Frontend**: React 19, Vite 7, Tailwind 4 y react-router-dom v7.
 
 ## Puesta en marcha
 
